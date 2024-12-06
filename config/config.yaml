@@ -1,0 +1,31 @@
+model:
+  input_shape: [64, 128, 1]
+  num_classes: 95
+  character_set: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*()_+-=[]{}|;:,.<>?`~"
+
+training:
+  epochs: 50
+  batch_size: 32
+  learning_rate: 0.001
+  data_augmentation: true
+
+paths:
+  dataset: "path/to/your/dataset"
+  model_save: "handwriting_recognition_model.h5"
+  model_weights: "path/to/saved/model/weights.h5"
+  best_model: "best_model.h5"
+  logs: "./logs"
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+logging:
+  level: "INFO"
+  directory: "logs"
+  file: "app.log"
+  max_size: 5242880  # 5 MB
+  backup_count: 3
+
+environment: "development"  # Change to "production" for production environment
+
