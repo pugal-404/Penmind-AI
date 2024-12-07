@@ -36,3 +36,10 @@ __pycache__/
 
 # Build output
 /dist/
+
+venv/
+# Ignore dataset folder
+ml/data/handwriting_dataset/
+
+# Ignore model binary files
+ml/models/pytorch_model.bin
