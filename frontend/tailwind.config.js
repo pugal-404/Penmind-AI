@@ -4,7 +4,15 @@ module.exports = {
     "./public/index.html"
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        primary: '#3B82F6',
+        secondary: '#10B981',
+      },
+      fontFamily: {
+        sans: ['Roboto', 'Arial', 'sans-serif'],
+      },
+    },
   },
   plugins: [],
 }

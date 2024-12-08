@@ -1,52 +1,42 @@
 import tensorflow as tf
 import numpy as np
 import os
-from ml.models.cnn_lstm_model import create_advanced_cnn_lstm_model
+from ml.models.cnn_lstm_model import create_advanced_cnn_lstm_model, ctc_loss
 from ml.preprocessing.preprocess import preprocess_image, augment_image
-from tensorflow import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping, TensorBoard
+import yaml
+from sklearn.model_selection import train_test_split
+import logging
 
-def load_dataset(data_dir, target_size=(64, 128)):
-    """
-    Load and preprocess the dataset.
-    
-    Args:
-    data_dir (str): Directory containing the dataset.
-    target_size (tuple): Target size for the preprocessed images.
-    
-    Returns:
-    tuple: (x_train, y_train), (x_val, y_val), character_set
-    """
-    character_set = []
+logger = logging.getLogger(__name__)
+
+def load_config():
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    config_path = os.path.join(project_root, 'config', 'config.yaml')
+    with open(config_path, 'r') as config_file:
+        return yaml.safe_load(config_file)
+
+def load_dataset(data_dir, config):
     images = []
     labels = []
+    character_set = config['model']['character_set']
     
-    for root, _, files in os.walk(data_dir):
-        for file in files:
-            if file.endswith(('.png', '.jpg', '.jpeg')):
-                label = os.path.basename(root)
-                if label not in character_set:
-                    character_set.append(label)
-                
-                img_path = os.path.join(root, file)
-                img = preprocess_image(img_path, target_size)
-                
-                if img is not None:
-                    images.append(img)
-                    labels.append(character_set.index(label))
+    for char in character_set:
+        char_dir = os.path.join(data_dir, char)
+        if os.path.isdir(char_dir):
+            for file in os.listdir(char_dir):
+                if file.endswith(('.png', '.jpg', '.jpeg')):
+                    img_path = os.path.join(char_dir, file)
+                    img = preprocess_image(img_path, target_size=tuple(config['model']['input_shape'][:2]))
+                    
+                    if img is not None:
+                        images.append(img)
+                        labels.append(character_set.index(char))
     
-    x = np.array(images)
-    y = np.array(labels)
-    
-    # Split the data into training and validation sets
-    split = int(0.8 * len(x))
-    x_train, x_val = x[:split], x[split:]
-    y_train, y_val = y[:split], y[split:]
-    
-    return (x_train, y_train), (x_val, y_val), character_set
+    return np.array(images), np.array(labels)
 
-def data_generator(x, y, batch_size, character_set, augment=True):
+def data_generator(x, y, batch_size, config, augment=True):
     num_samples = x.shape[0]
-    num_classes = len(character_set)
+    num_classes = len(config['model']['character_set'])
     
     while True:
         indices = np.random.permutation(num_samples)
@@ -62,57 +52,77 @@ def data_generator(x, y, batch_size, character_set, augment=True):
             
             yield batch_x, batch_y_onehot
 
-def train_model(model, train_data, val_data, character_set, epochs=50, batch_size=32):
-    x_train, y_train = train_data
-    x_val, y_val = val_data
+def train_model(config):
+    # Load and preprocess data
+    x, y = load_dataset(config['paths']['dataset'], config)
+    
+    # Split the data into training and validation sets
+    x_train, x_val, y_train, y_val = train_test_split(x, y, test_size=0.2, random_state=42)
+    
+    # Create and compile the model
+    model = create_advanced_cnn_lstm_model(tuple(config['model']['input_shape']), len(config['model']['character_set']))
+    
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=config['training']['learning_rate']),
+        loss=ctc_loss,
+        metrics=['accuracy']
+    )
     
     # Define callbacks
-    checkpoint = ModelCheckpoint('best_model.h5', save_best_only=True, monitor='val_accuracy')
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=1e-6)
-    early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-    tensorboard = TensorBoard(log_dir='./logs', histogram_freq=1, write_graph=True, write_images=True)
+    callbacks = [
+        tf.keras.callbacks.ModelCheckpoint(config['paths']['best_model'], save_best_only=True, monitor='val_accuracy'),
+        tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=1e-6),
+        tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True),
+        tf.keras.callbacks.TensorBoard(log_dir=config['paths']['logs'])
+    ]
     
     # Create data generators
-    train_gen = data_generator(x_train, y_train, batch_size, character_set, augment=True)
-    val_gen = data_generator(x_val, y_val, batch_size, character_set, augment=False)
+    train_gen = data_generator(x_train, y_train, config['training']['batch_size'], config, augment=config['training']['data_augmentation'])
+    val_gen = data_generator(x_val, y_val, config['training']['batch_size'], config, augment=False)
     
     # Train the model
     history = model.fit(
         train_gen,
-        steps_per_epoch=len(x_train) // batch_size,
+        steps_per_epoch=len(x_train) // config['training']['batch_size'],
         validation_data=val_gen,
-        validation_steps=len(x_val) // batch_size,
-        epochs=epochs,
-        callbacks=[checkpoint, reduce_lr, early_stopping, tensorboard]
+        validation_steps=len(x_val) // config['training']['batch_size'],
+        epochs=config['training']['epochs'],
+        callbacks=callbacks
     )
+    
+    # Save the final model
+    model.save(config['paths']['model_save'])
     
     return history
 
 if __name__ == "__main__":
-    # Set random seed for reproducibility
-    np.random.seed(42)
-    tf.random.set_seed(42)
+    config = load_config()
+    history = train_model(config)
     
-    # Load and preprocess data
-    data_dir = 'path/to/your/dataset'  # Replace with the actual path to your dataset
-    (x_train, y_train), (x_val, y_val), character_set = load_dataset(data_dir)
-    
-    # Create and compile the model
-    input_shape = (64, 128, 1)
-    num_classes = len(character_set)
-    model = create_advanced_cnn_lstm_model(input_shape, num_classes)
-    
-    # Compile the model
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-        loss='categorical_crossentropy',
-        metrics=['accuracy']
-    )
-    
-    # Train the model
-    history = train_model(model, (x_train, y_train), (x_val, y_val), character_set)
-    
-    # Save the final model
-    model.save('handwriting_recognition_model.h5')
-    
-    print("Training completed. Model saved as 'handwriting_recognition_model.h5'")
+    logger.info("Training completed. Model saved.")
+
+    # Plot training history
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(history.history['loss'], label='Training Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.title('Model Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(history.history['accuracy'], label='Training Accuracy')
+    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    plt.title('Model Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(config['paths']['logs'], 'training_history.png'))
+    plt.close()
+
+    logger.info("Training history plot saved.")

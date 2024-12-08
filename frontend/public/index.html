@@ -5,11 +5,14 @@
     <link rel="icon" href="/assets/icons/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
-    <meta name="description" content="Advanced Handwriting Recognition System for Specially Challenged Individuals" />
+    <meta
+        name="description"
+        content="Advanced Handwriting Recognition System for Specially Challenged Individuals"
+    />
     <meta name="author" content="Your Name or Organization" />
     <meta name="keywords" content="handwriting recognition, accessibility, AI, machine learning" />
-    <link rel="apple-touch-icon" href="/assets/icons/logo192.png" />
-    <link rel="manifest" href="/assets/icons/manifest.json" /> <!-- Updated path -->
+    <link rel="apple-touch-icon" href="/assets/icons/apple-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
     <title>Handwriting Recognition System</title>
 </head>
 <body>
@@ -18,11 +21,13 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/service-worker.js').then(function(registration) {
-                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                }, function(err) {
-                    console.log('ServiceWorker registration failed: ', err);
-                });
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(function(err) {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
             });
         }
     </script>

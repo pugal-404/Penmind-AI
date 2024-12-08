@@ -1,50 +1,62 @@
+from ml.models.cnn_lstm_model import ctc_loss
 import tensorflow as tf
 import numpy as np
 from ml.preprocessing.preprocess import preprocess_image
-from ml.training.train import generate_character_set
+import yaml
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 def load_model(model_path):
-    return tf.keras.models.load_model(model_path)
+    return tf.keras.models.load_model(model_path, custom_objects={'ctc_loss': ctc_loss})
 
-def predict(model, image, character_set):
-    preprocessed_image = preprocess_image(image)
+def predict(model, image, config):
+    logger.info(f"Input image: shape={image.shape}, dtype={image.dtype}")
+    
+    preprocessed_image = preprocess_image(image, target_size=tuple(config['model']['input_shape'][:2]))
     if preprocessed_image is None:
+        logger.error("Failed to preprocess the image")
         return "Error: Unable to preprocess the image."
     
-    preprocessed_image = np.expand_dims(preprocessed_image, axis=0)
+    logger.info(f"Preprocessed image: shape={preprocessed_image.shape}, dtype={preprocessed_image.dtype}")
+    
+    # Ensure the image has the correct shape for the model
+    if preprocessed_image.shape != tuple(config['model']['input_shape']):
+        logger.warning(f"Resizing image to match model input shape: {tuple(config['model']['input_shape'])}")
+        preprocessed_image = tf.image.resize(preprocessed_image, config['model']['input_shape'][:2])
+        preprocessed_image = tf.expand_dims(preprocessed_image, axis=0)
+    else:
+        preprocessed_image = np.expand_dims(preprocessed_image, axis=0)
+    
+    logger.info(f"Model input: shape={preprocessed_image.shape}, dtype={preprocessed_image.dtype}")
     
     prediction = model.predict(preprocessed_image)
-    recognized_text = decode_prediction(prediction[0], character_set)
+    logger.info(f"Model output: shape={prediction.shape}, dtype={prediction.dtype}")
+    
+    recognized_text = decode_prediction(prediction[0], config['model']['character_set'])
     
     return recognized_text
 
 def decode_prediction(prediction, character_set):
-    return ''.join([character_set[np.argmax(pred)] for pred in prediction])
+    # Implement beam search decoding
+    input_len = np.ones(prediction.shape[0]) * prediction.shape[1]
+    results = tf.keras.backend.ctc_decode(prediction, input_length=input_len, greedy=False, beam_width=100, top_paths=1)
+    
+    # Extract the best path
+    best_path = results[0][0]
+    
+    # Convert to text
+    text = ''.join([character_set[index] for index in best_path[0] if index != -1 and index < len(character_set)])
+    
+    # Split text into lines
+    lines = text.split('\n')
+    
+    return lines
 
-if __name__ == "__main__":
-    model_path = 'path/to/your/saved/model.h5'
-    model = load_model(model_path)
-    
-    character_set = generate_character_set()
-    
-    # Test with a sample image
-    sample_image_path = 'path/to/sample_image.png'
-    with open(sample_image_path, 'rb') as image_file:
-        sample_image = image_file.read()
-    
-    recognized_text = predict(model, sample_image, character_set)
-    print(f"Recognized text: {recognized_text}")
-
-# Example of error handling
-try:
-    invalid_image_path = 'path/to/invalid_image.txt'
-    with open(invalid_image_path, 'rb') as invalid_file:
-        invalid_image = invalid_file.read()
-    
-    result = predict(model, invalid_image, character_set)
-    print(f"Result for invalid image: {result}")
-except Exception as e:
-    print(f"Error occurred: {str(e)}")
-
-print("Inference script completed.")
+# Load configuration
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+config_path = os.path.join(project_root, 'config', 'config.yaml')
+with open(config_path, "r", encoding="utf-8") as config_file:
+    config = yaml.safe_load(config_file)
 

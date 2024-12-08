@@ -1,18 +1,22 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
   entry: './src/index.js',
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: 'bundle.js',
+    filename: 'bundle.[contenthash].js',
     publicPath: '/',
   },
-  mode: 'development', // Change to 'production' for production builds
+  mode: 'development',
   devServer: {
     historyApiFallback: true,
-    static: './dist',
+    static: {
+      directory: path.join(__dirname, 'public'),
+    },
     port: 3000,
+    hot: true,
   },
   module: {
     rules: [
@@ -25,7 +29,7 @@ module.exports = {
       },
       {
         test: /\.css$/,
-        use: ['style-loader', 'css-loader'],
+        use: ['style-loader', 'css-loader', 'postcss-loader'],
       },
     ],
   },
@@ -34,10 +38,15 @@ module.exports = {
   },
   plugins: [
     new HtmlWebpackPlugin({
-      template: './public/index.html', // This should point to your HTML template
+      template: './public/index.html',
       filename: 'index.html',
-      inject: true,
-      favicon: './public/assets/icons/favicon.ico', // Update this line
+    }),
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: 'public/assets', to: 'assets' },
+        { from: 'public/manifest.json', to: 'manifest.json' },
+      ],
     }),
   ],
 };
+
