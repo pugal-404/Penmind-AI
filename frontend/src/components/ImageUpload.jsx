@@ -1,79 +1,88 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useDropzone } from 'react-dropzone';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Card, CardContent } from "./ui/card"
+import { Upload, File, X } from 'lucide-react'
+import { Button } from "./ui/button"
 
 const ImageUpload = ({ onUpload }) => {
-  const [dragActive, setDragActive] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const [error, setError] = useState(null);
-  const inputRef = useRef(null);
+  const { t } = useTranslation();
+  const [previewUrl, setPreviewUrl] = useState(null);
 
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleChange = (e) => {
-    e.preventDefault();
-    if (e.target.files && e.target.files[0]) {
-      handleFile(e.target.files[0]);
-    }
-  };
-
-  const handleFile = (file) => {
-    setError(null);
-    if (file.type.startsWith('image/')) {
-      setPreview(URL.createObjectURL(file));
+  const onDrop = useCallback((acceptedFiles) => {
+    if (acceptedFiles && acceptedFiles.length > 0) {
+      const file = acceptedFiles[0];
+      setPreviewUrl(URL.createObjectURL(file));
       onUpload(file);
-    } else {
-      setError('Please upload a valid image file.');
     }
+  }, [onUpload]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: 'image/*',
+    multiple: false
+  });
+
+  const clearPreview = () => {
+    setPreviewUrl(null);
   };
 
   return (
-    <div
-      className={`border-2 border-dashed rounded-lg p-8 text-center ${
-        dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-      }`}
-      onDragEnter={handleDrag}
-      onDragLeave={handleDrag}
-      onDragOver={handleDrag}
-      onDrop={handleDrop}
-    >
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleChange}
-        className="hidden"
-      />
-      {preview ? (
-        <div className="mb-4">
-          <img src={preview} alt="Preview" className="max-w-full h-auto" />
-        </div>
-      ) : (
-        <p className="mb-4">Drag and drop your image here, or click to select a file</p>
-      )}
-      <button
-        onClick={() => inputRef.current.click()}
-        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300"
-      >
-        Select File
-      </button>
-      {error && <p className="text-red-500 mt-2">{error}</p>}
-    </div>
+    <Card>
+      <CardContent className="p-6">
+        <motion.div
+          {...getRootProps()}
+          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+            isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+          }`}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <input {...getInputProps()} />
+          <AnimatePresence mode="wait">
+            {previewUrl ? (
+              <motion.div
+                key="preview"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="relative"
+              >
+                <img
+                  src={previewUrl}
+                  alt="Preview"
+                  className="mx-auto max-h-48 object-contain"
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-0 right-0 mt-2 mr-2"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    clearPreview();
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="upload"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                <p className="mt-2 text-sm text-gray-600">
+                  {isDragActive ? t('dropImageHere') : t('dragDropImage')}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </CardContent>
+    </Card>
   );
 };
 

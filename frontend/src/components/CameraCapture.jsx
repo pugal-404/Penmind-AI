@@ -1,180 +1,143 @@
-import React, { useRef, useState, useCallback, useEffect } from "react";
-import axios from "axios";
-import { Button } from "./ui/button";
-import { Camera, RefreshCw, Play, Pause } from 'lucide-react';
-import ExportOptions from './ExportOptions'; // Assuming ExportOptions is imported
+import React, { useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from "./ui/button"
+import { Card, CardContent } from "./ui/card"
+import { Camera, StopCircle, RefreshCw, CheckCircle } from 'lucide-react'
 
-const CameraCapture = ({ onCapture, onRealTimeCapture }) => {
+const CameraCapture = ({ onCapture }) => {
+  const { t } = useTranslation();
   const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [isCameraOn, setIsCameraOn] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [stream, setStream] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
-  const [recognizedText, setRecognizedText] = useState(null);
-  const [isRealTimeMode, setIsRealTimeMode] = useState(false);
 
-  const startCamera = useCallback(async () => {
+  const startCapture = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      videoRef.current.srcObject = stream;
-      videoRef.current.play();
-      setIsCameraOn(true);
-    } catch (err) {
-      console.error('Error accessing camera:', err);
-      alert("Unable to access the camera. Please check permissions.");
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      videoRef.current.srcObject = mediaStream;
+      setStream(mediaStream);
+      setIsCapturing(true);
+    } catch (error) {
+      console.error('Error accessing camera:', error);
     }
   }, []);
 
-  const stopCamera = useCallback(() => {
-    const stream = videoRef.current.srcObject;
+  const stopCapture = useCallback(() => {
     if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+      stream.getTracks().forEach(track => track.stop());
     }
-    videoRef.current.srcObject = null;
-    setIsCameraOn(false);
-    setIsRealTimeMode(false);
-  }, []);
+    setIsCapturing(false);
+    setStream(null);
+  }, [stream]);
 
-  const captureImage = async () => {
-    setIsLoading(true);
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-
-    if (canvas && video) {
-      const ctx = canvas.getContext("2d");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(async (blob) => {
-        if (blob) {
-          // Send captured image to backend for recognition
-          try {
-            const formData = new FormData();
-            formData.append("file", blob);
-            const response = await axios.post("http://localhost:8000/recognize_realtime", formData, {
-              timeout: 10000 // 10 seconds timeout
-            });
-            setCapturedImage(URL.createObjectURL(blob));
-            setRecognizedText(response.data.recognized_text); // Update recognized text state
-            onCapture(response.data.recognized_text); // Pass recognized text to parent
-          } catch (error) {
-            console.error("Error during recognition:", error);
-            alert("Failed to process the image. Please try again.");
-          } finally {
-            setIsLoading(false);
-          }
-        }
-      }, "image/jpeg");
+  const captureImage = useCallback(() => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
+      canvas.toBlob(blob => {
+        setCapturedImage(URL.createObjectURL(blob));
+        onCapture(blob);
+        stopCapture();
+      }, 'image/jpeg');
     }
-    stopCamera();
-  };
-
-  const toggleRealTimeMode = useCallback(() => {
-    setIsRealTimeMode((prev) => !prev);
-  }, []);
-
-  useEffect(() => {
-    let interval;
-    if (isRealTimeMode && isCameraOn) {
-      interval = setInterval(() => {
-        if (videoRef.current && canvasRef.current) {
-          const context = canvasRef.current.getContext('2d');
-          context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
-          canvasRef.current.toBlob((blob) => {
-            onRealTimeCapture(blob); // Send to parent component
-            recognizeText(blob); // Real-time recognition
-          }, 'image/jpeg');
-        }
-      }, 1000); // Capture every second
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isRealTimeMode, isCameraOn, onRealTimeCapture]);
-
-  const recognizeText = async (imageBlob) => {
-    setIsLoading(true);
-    const formData = new FormData();
-    formData.append('file', imageBlob);
-
-    try {
-      const response = await axios.post('http://localhost:8000/recognize', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setRecognizedText(response.data.recognized_text); // Save recognized text
-    } catch (err) {
-      console.error('Error during text recognition:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [onCapture, stopCapture]);
 
   const retakePhoto = useCallback(() => {
     setCapturedImage(null);
-    setRecognizedText(null);
-    startCamera();
-  }, [startCamera]);
+    startCapture();
+  }, [startCapture]);
 
   return (
-    <div className="camera-capture">
-      <div className="status-badge">
-        {isCameraOn ? (
-          <span className="badge badge-green">Camera On</span>
-        ) : (
-          <span className="badge badge-red">Camera Off</span>
-        )}
-      </div>
-      <div className="video-container">
-        <video ref={videoRef} className="video-feed"></video>
-        <canvas ref={canvasRef} className="hidden"></canvas>
-      </div>
-      <div className="controls">
-        {!isCameraOn ? (
-          <Button onClick={startCamera} className="w-full">
-            <Camera className="mr-2 h-4 w-4" /> Start Camera
-          </Button>
-        ) : (
-          <Button onClick={stopCamera} className="btn btn-danger">
-            Stop Camera
-          </Button>
-        )}
-        <Button
-          onClick={captureImage}
-          className="btn btn-success"
-          disabled={!isCameraOn || isLoading}
+    <Card>
+      <CardContent className="p-6">
+        <motion.div 
+          className="aspect-video bg-gray-200 mb-4 rounded-lg overflow-hidden"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
         >
-          {isLoading ? "Processing..." : "Capture Image"}
-        </Button>
-        <Button onClick={toggleRealTimeMode} className="btn btn-secondary">
-          {isRealTimeMode ? (
-            <Pause className="mr-2 h-4 w-4" />
-          ) : (
-            <Play className="mr-2 h-4 w-4" />
-          )}
-          {isRealTimeMode ? "Stop Real-time" : "Start Real-time"}
-        </Button>
-      </div>
-      {capturedImage && (
-        <div className="captured-image-container">
-          <img src={capturedImage} alt="Captured" className="w-full h-auto" />
-          <Button
-            onClick={retakePhoto}
-            className="absolute bottom-4 left-1/2 transform -translate-x-1/2"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" /> Retake Photo
-          </Button>
+          <AnimatePresence mode="wait">
+            {capturedImage ? (
+              <motion.img
+                key="captured"
+                src={capturedImage}
+                alt="Captured"
+                className="w-full h-full object-cover"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+              />
+            ) : (
+              <motion.video
+                key="video"
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+              />
+            )}
+          </AnimatePresence>
+        </motion.div>
+        <div className="flex justify-center space-x-4">
+          <AnimatePresence mode="wait">
+            {!isCapturing && !capturedImage && (
+              <motion.div
+                key="start"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Button onClick={startCapture}>
+                  <Camera className="mr-2 h-4 w-4" /> {t('startCamera')}
+                </Button>
+              </motion.div>
+            )}
+            {isCapturing && (
+              <motion.div
+                key="capturing"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="space-x-4"
+              >
+                <Button onClick={captureImage} variant="outline">
+                  <CheckCircle className="mr-2 h-4 w-4" /> {t('captureImage')}
+                </Button>
+                <Button onClick={stopCapture} variant="destructive">
+                  <StopCircle className="mr-2 h-4 w-4" /> {t('stopCamera')}
+                </Button>
+              </motion.div>
+            )}
+            {capturedImage && (
+              <motion.div
+                key="retake"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Button onClick={retakePhoto}>
+                  <RefreshCw className="mr-2 h-4 w-4" /> {t('retakePhoto')}
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      )}
-      {recognizedText && !isLoading && (
-        <div className="mt-4">
-          <h3>Recognized Text:</h3>
-          <p>{recognizedText}</p>
-          <ExportOptions recognizedText={recognizedText} /> {/* Export options for DOCX, PDF */}
-        </div>
-      )}
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 
 export default CameraCapture;
+

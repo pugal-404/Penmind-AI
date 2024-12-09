@@ -1,0 +1,2241 @@
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/README.md
+==================================================
+# Handwriting Recognition Frontend
+
+This is the frontend for the Advanced Handwriting Recognition System. It provides a user-friendly interface for uploading handwritten text images and viewing the recognized text.
+
+## Features
+
+- Image upload via drag-and-drop or file selection
+- Display of recognized text
+- Export options (TXT, DOCX, PDF)
+
+## Getting Started
+
+1. Install dependencies:
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/tailwind.config.js
+==================================================
+const { fontFamily } = require('tailwindcss/defaultTheme')
+
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  darkMode: ["class"],
+  content: [
+    './pages/**/*.{js,jsx}',
+    './components/**/*.{js,jsx}',
+    './app/**/*.{js,jsx}',
+    './src/**/*.{js,jsx}',
+  ],
+  theme: {
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
+    extend: {
+      colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      fontFamily: {
+        sans: ["Poppins", ...fontFamily.sans],
+      },
+      keyframes: {
+        "accordion-down": {
+          from: { height: 0 },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: 0 },
+        },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+      },
+      typography: (theme) => ({
+        DEFAULT: {
+          css: {
+            color: theme('colors.foreground'),
+            a: {
+              color: theme('colors.primary.DEFAULT'),
+              '&:hover': {
+                color: theme('colors.primary.DEFAULT'),
+              },
+            },
+            'h1, h2, h3, h4, h5, h6': {
+              color: theme('colors.foreground'),
+            },
+          },
+        },
+      }),
+    },
+  },
+  plugins: [
+    require("tailwindcss-animate"),
+    require('@tailwindcss/typography'),
+  ],
+}
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/webpack.config.js
+==================================================
+const path = require('path');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
+
+module.exports = {
+  entry: './src/index.js',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'bundle.[contenthash].js',
+    publicPath: '/',
+  },
+  mode: 'development',
+  devServer: {
+    historyApiFallback: true,
+    static: {
+      directory: path.join(__dirname, 'public'),
+    },
+    port: 3000,
+    hot: true,
+  },
+  module: {
+    rules: [
+      {
+        test: /\.(js|jsx)$/,
+        exclude: /node_modules/,
+        use: {
+          loader: 'babel-loader',
+        },
+      },
+      {
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader', 'postcss-loader'],
+      },
+    ],
+  },
+  resolve: {
+    extensions: ['.js', '.jsx'],
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+    },
+  },
+  plugins: [
+    new HtmlWebpackPlugin({
+      template: './public/index.html',
+      filename: 'index.html',
+    }),
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: 'public/assets', to: 'assets' },
+        { from: 'public/manifest.json', to: 'manifest.json' },
+      ],
+    }),
+  ],
+};
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/public/index.html
+==================================================
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/assets/icons/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+        name="description"
+        content="Advanced Handwriting Recognition System for Specially Challenged Individuals"
+    />
+    <meta name="author" content="Your Name or Organization" />
+    <meta name="keywords" content="handwriting recognition, accessibility, AI, machine learning" />
+    <link rel="apple-touch-icon" href="/assets/icons/apple-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>Handwriting Recognition System</title>
+</head>
+<body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(function(err) {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/public/manifest.json
+==================================================
+{
+  "short_name": "Handwriting AI",
+  "name": "Advanced Handwriting Recognition System",
+  "icons": [
+    {
+      "src": "assets/icons/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "assets/icons/logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "assets/icons/logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff",
+  "orientation": "any"
+}
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/public/service-worker.js
+==================================================
+const CACHE_NAME = 'handwriting-recognition-v1';
+const urlsToCache = [
+  '/',
+  '/index.html',
+  '/static/js/bundle.js',
+  '/static/css/main.css',
+  '/manifest.json'
+];
+
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        return cache.addAll(urlsToCache)
+          .catch(error => {
+            console.error('Failed to cache resources:', error);
+          });
+      })
+  );
+});
+
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => response || fetch(event.request))
+  );
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+});
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/App.jsx
+==================================================
+import React from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { I18nextProvider } from 'react-i18next';
+import i18n from './i18n';
+import { AnimatePresence } from 'framer-motion';
+import HomePage from './pages/HomePage';
+import RecognitionPage from './pages/RecognitionPage';
+import SettingsPage from './pages/SettingsPage';
+import Header from './components/Header';
+import Footer from './components/Footer';
+import AccessibilityProvider from './contexts/AccessibilityContext';
+import './styles/globals.css';
+
+const App = () => {
+  return (
+    <ThemeProvider>
+      <I18nextProvider i18n={i18n}>
+        <AccessibilityProvider>
+          <Router>
+            <div className="flex flex-col min-h-screen bg-background text-foreground text-adjustable">
+              <a href="#main-content" className="skip-link">
+                Skip to main content
+              </a>
+              <Header />
+              <AnimatePresence mode="wait">
+                <main id="main-content" className="flex-grow z-10">
+                  <Routes>
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/recognition" element={<RecognitionPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </main>
+              </AnimatePresence>
+              <Footer />
+            </div>
+          </Router>
+        </AccessibilityProvider>
+      </I18nextProvider>
+    </ThemeProvider>
+  );
+};
+
+export default App;
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/i18n.js
+==================================================
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
+
+i18n
+  .use(initReactI18next)
+  .init({
+    resources: {
+      en: {
+        translation: {
+          handwritingRecognition: 'Handwriting Recognition',
+          imageUpload: 'Image Upload',
+          cameraCapture: 'Camera Capture',
+          uploadImage: 'Upload Image',
+          processingImage: 'Processing image...',
+          error: 'Error',
+          recognizedText: 'Recognized Text',
+          confidence: 'Confidence',
+          processingTime: 'Processing Time',
+          modelUsed: 'Model Used',
+          seconds: 'seconds',
+          startCamera: 'Start Camera',
+          captureImage: 'Capture Image',
+          stopCamera: 'Stop Camera',
+          retakePhoto: 'Retake Photo',
+          dropImageHere: 'Drop the image here',
+          dragDropImage: "Drag 'n' drop an image here, or click to select a file",
+          imageUploaded: 'Image uploaded',
+          accessibilityOptions: 'Accessibility Options',
+          fontSize: 'Font Size',
+          highContrastMode: 'High Contrast Mode',
+          textToSpeech: 'Text-to-Speech',
+          exportOptions: 'Export Options',
+          copyToClipboard: 'Copy to Clipboard',
+          exportAsTxt: 'Export as TXT',
+          exportAsDocx: 'Export as DOCX',
+          exportAsPdf: 'Export as PDF',
+          exportAsJson: 'Export as JSON',
+          copiedToClipboard: 'Copied to clipboard!',
+          recognitionError: 'An error occurred during recognition. Please try again.',
+        },
+      },
+      // Add more languages here
+    },
+    lng: 'en', // Set the default language
+    fallbackLng: 'en',
+    interpolation: {
+      escapeValue: false,
+    },
+  });
+
+export default i18n;
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/index.js
+==================================================
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import './styles/globals.css';
+import App from './App';
+
+const container = document.getElementById('root');
+const root = createRoot(container);
+
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/AccessibilityOptions.jsx
+==================================================
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { useAccessibility } from '../contexts/AccessibilityContext';
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
+import { Slider } from "./ui/slider"
+import { Switch } from "./ui/switch"
+import { Label } from "./ui/label"
+import { Button } from "./ui/button"
+import { Volume2, Type, Contrast, Keyboard, Eye } from 'lucide-react';
+
+const AccessibilityOptions = () => {
+  const { t } = useTranslation();
+  const { 
+    fontSize, 
+    setFontSize, 
+    highContrast, 
+    setHighContrast, 
+    textToSpeech, 
+    setTextToSpeech,
+    keyboardNavigation,
+    setKeyboardNavigation,
+    screenReaderMode,
+    setScreenReaderMode,
+    speakText
+  } = useAccessibility();
+
+  const handleFontSizeChange = (value) => {
+    setFontSize(value[0]);
+  };
+
+  const handleHighContrastChange = (checked) => {
+    setHighContrast(checked);
+  };
+
+  const handleTextToSpeechChange = (checked) => {
+    setTextToSpeech(checked);
+  };
+
+  const handleKeyboardNavigationChange = (checked) => {
+    setKeyboardNavigation(checked);
+  };
+
+  const handleScreenReaderModeChange = (checked) => {
+    setScreenReaderMode(checked);
+  };
+
+  return (
+    <Card className="mb-8">
+      <CardHeader>
+        <CardTitle>{t('accessibilityOptions')}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="font-size" className="flex items-center">
+              <Type className="mr-2" aria-hidden="true" />
+              {t('fontSize')}: {fontSize}px
+            </Label>
+            <Slider
+              id="font-size"
+              min={12}
+              max={24}
+              step={1}
+              value={[fontSize]}
+              onValueChange={handleFontSizeChange}
+              aria-label={t('adjustFontSize')}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="high-contrast" className="flex items-center">
+              <Contrast className="mr-2" aria-hidden="true" />
+              {t('highContrastMode')}
+            </Label>
+            <Switch
+              id="high-contrast"
+              checked={highContrast}
+              onCheckedChange={handleHighContrastChange}
+              aria-label={t('toggleHighContrast')}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="text-to-speech" className="flex items-center">
+              <Volume2 className="mr-2" aria-hidden="true" />
+              {t('textToSpeech')}
+            </Label>
+            <Switch
+              id="text-to-speech"
+              checked={textToSpeech}
+              onCheckedChange={handleTextToSpeechChange}
+              aria-label={t('toggleTextToSpeech')}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="keyboard-navigation" className="flex items-center">
+              <Keyboard className="mr-2" aria-hidden="true" />
+              {t('keyboardNavigation')}
+            </Label>
+            <Switch
+              id="keyboard-navigation"
+              checked={keyboardNavigation}
+              onCheckedChange={handleKeyboardNavigationChange}
+              aria-label={t('toggleKeyboardNavigation')}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="screen-reader-mode" className="flex items-center">
+              <Eye className="mr-2" aria-hidden="true" />
+              {t('screenReaderMode')}
+            </Label>
+            <Switch
+              id="screen-reader-mode"
+              checked={screenReaderMode}
+              onCheckedChange={handleScreenReaderModeChange}
+              aria-label={t('toggleScreenReaderMode')}
+            />
+          </div>
+          {textToSpeech && (
+            <Button 
+              onClick={() => speakText(t('testTextToSpeech'))} 
+              className="w-full"
+              aria-label={t('testTextToSpeech')}
+            >
+              <Volume2 className="mr-2 h-4 w-4" aria-hidden="true" />
+              {t('testTextToSpeech')}
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default AccessibilityOptions;
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/BackgroundAnimation.jsx
+==================================================
+import React, { useEffect, useRef } from 'react';
+
+const BackgroundAnimation = () => {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    let animationFrameId;
+
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    const examples = [
+      { handwritten: "E = mc²", typed: "E = mc²" },
+      { handwritten: "AI is the future", typed: "AI is the future" },
+      { handwritten: "The quick brown fox", typed: "The quick brown fox" }
+    ];
+    let currentExample = 0;
+    let phase = 'writing';
+    let progress = 0;
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      const example = examples[currentExample];
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+
+      ctx.font = '30px "Comic Sans MS", cursive';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      if (phase === 'writing') {
+        const text = example.handwritten.slice(0, Math.floor(progress * example.handwritten.length));
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillText(text, centerX, centerY);
+      } else if (phase === 'scanning') {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillText(example.handwritten, centerX, centerY);
+        
+        const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+        gradient.addColorStop(0, 'rgba(0, 255, 0, 0)');
+        gradient.addColorStop(progress, 'rgba(0, 255, 0, 0.5)');
+        gradient.addColorStop(progress + 0.1, 'rgba(0, 255, 0, 0.5)');
+        gradient.addColorStop(1, 'rgba(0, 255, 0, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.height, canvas.height);
+      } else if (phase === 'transforming') {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillText(example.handwritten, centerX, centerY - 20 * (1 - progress));
+        
+        ctx.font = '24px Arial, sans-serif';
+        ctx.fillStyle = `rgba(255, 255, 255, ${progress})`;
+        ctx.fillText(example.typed, centerX, centerY + 20 * progress);
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX - 50, centerY);
+        ctx.lineTo(centerX + 50, centerY);
+        ctx.lineTo(centerX + 40, centerY - 10);
+        ctx.moveTo(centerX + 50, centerY);
+        ctx.lineTo(centerX + 40, centerY + 10);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${progress})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      progress += 0.005;
+      if (progress >= 1) {
+        progress = 0;
+        if (phase === 'writing') {
+          phase = 'scanning';
+        } else if (phase === 'scanning') {
+          phase = 'transforming';
+        } else {
+          phase = 'writing';
+          currentExample = (currentExample + 1) % examples.length;
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('resize', resizeCanvas);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full -z-10" />;
+};
+
+export default BackgroundAnimation;
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/CameraCapture.jsx
+==================================================
+import React, { useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from "./ui/button"
+import { Card, CardContent } from "./ui/card"
+import { Camera, StopCircle, RefreshCw, CheckCircle } from 'lucide-react'
+
+const CameraCapture = ({ onCapture }) => {
+  const { t } = useTranslation();
+  const videoRef = useRef(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [stream, setStream] = useState(null);
+  const [capturedImage, setCapturedImage] = useState(null);
+
+  const startCapture = useCallback(async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      videoRef.current.srcObject = mediaStream;
+      setStream(mediaStream);
+      setIsCapturing(true);
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+    }
+  }, []);
+
+  const stopCapture = useCallback(() => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+    }
+    setIsCapturing(false);
+    setStream(null);
+  }, [stream]);
+
+  const captureImage = useCallback(() => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
+      canvas.toBlob(blob => {
+        setCapturedImage(URL.createObjectURL(blob));
+        onCapture(blob);
+        stopCapture();
+      }, 'image/jpeg');
+    }
+  }, [onCapture, stopCapture]);
+
+  const retakePhoto = useCallback(() => {
+    setCapturedImage(null);
+    startCapture();
+  }, [startCapture]);
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <motion.div 
+          className="aspect-video bg-gray-200 mb-4 rounded-lg overflow-hidden"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          <AnimatePresence mode="wait">
+            {capturedImage ? (
+              <motion.img
+                key="captured"
+                src={capturedImage}
+                alt="Captured"
+                className="w-full h-full object-cover"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+              />
+            ) : (
+              <motion.video
+                key="video"
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+              />
+            )}
+          </AnimatePresence>
+        </motion.div>
+        <div className="flex justify-center space-x-4">
+          <AnimatePresence mode="wait">
+            {!isCapturing && !capturedImage && (
+              <motion.div
+                key="start"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Button onClick={startCapture}>
+                  <Camera className="mr-2 h-4 w-4" /> {t('startCamera')}
+                </Button>
+              </motion.div>
+            )}
+            {isCapturing && (
+              <motion.div
+                key="capturing"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="space-x-4"
+              >
+                <Button onClick={captureImage} variant="outline">
+                  <CheckCircle className="mr-2 h-4 w-4" /> {t('captureImage')}
+                </Button>
+                <Button onClick={stopCapture} variant="destructive">
+                  <StopCircle className="mr-2 h-4 w-4" /> {t('stopCamera')}
+                </Button>
+              </motion.div>
+            )}
+            {capturedImage && (
+              <motion.div
+                key="retake"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Button onClick={retakePhoto}>
+                  <RefreshCw className="mr-2 h-4 w-4" /> {t('retakePhoto')}
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default CameraCapture;
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/Header.jsx
+==================================================
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { useTheme } from '../contexts/ThemeContext';
+import { motion } from 'framer-motion';
+import { Sun, Moon, Home, FileText, Settings } from 'lucide-react';
+import { Button } from './ui/button';
+
+const Header = () => {
+  const { t } = useTranslation();
+  const { theme, toggleTheme } = useTheme();
+
+  const iconVariants = {
+    hover: { scale: 1.2, rotate: 10, transition: { duration: 0.3 } }
+  };
+
+  return (
+    <header className="bg-gradient-to-r from-primary to-secondary text-primary-foreground z-10 sticky top-0">
+      <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+        <Link to="/" className="flex items-center" aria-label={t('home')}>
+          <motion.div
+            className="text-2xl font-bold tracking-tighter"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            AI Writer
+          </motion.div>
+        </Link>
+        <nav>
+          <ul className="flex space-x-6">
+            <li>
+              <Link to="/" aria-label={t('home')}>
+                <motion.div variants={iconVariants} whileHover="hover">
+                  <Home className="h-6 w-6" />
+                </motion.div>
+              </Link>
+            </li>
+            <li>
+              <Link to="/recognition" aria-label={t('recognition')}>
+                <motion.div variants={iconVariants} whileHover="hover">
+                  <FileText className="h-6 w-6" />
+                </motion.div>
+              </Link>
+            </li>
+            <li>
+              <Link to="/settings" aria-label={t('settings')}>
+                <motion.div variants={iconVariants} whileHover="hover">
+                  <Settings className="h-6 w-6" />
+                </motion.div>
+              </Link>
+            </li>
+          </ul>
+        </nav>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? t('switchToLightMode') : t('switchToDarkMode')}
+        >
+          <motion.div variants={iconVariants} whileHover="hover">
+            {theme === 'dark' ? <Sun className="h-6 w-6" /> : <Moon className="h-6 w-6" />}
+          </motion.div>
+        </Button>
+      </div>
+    </header>
+  );
+};
+
+export default Header;
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/ImageUpload.jsx
+==================================================
+import React, { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useDropzone } from 'react-dropzone';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Card, CardContent } from "./ui/card"
+import { Upload, File, X } from 'lucide-react'
+import { Button } from "./ui/button"
+
+const ImageUpload = ({ onUpload }) => {
+  const { t } = useTranslation();
+  const [previewUrl, setPreviewUrl] = useState(null);
+
+  const onDrop = useCallback((acceptedFiles) => {
+    if (acceptedFiles && acceptedFiles.length > 0) {
+      const file = acceptedFiles[0];
+      setPreviewUrl(URL.createObjectURL(file));
+      onUpload(file);
+    }
+  }, [onUpload]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: 'image/*',
+    multiple: false
+  });
+
+  const clearPreview = () => {
+    setPreviewUrl(null);
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <motion.div
+          {...getRootProps()}
+          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+            isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+          }`}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <input {...getInputProps()} />
+          <AnimatePresence mode="wait">
+            {previewUrl ? (
+              <motion.div
+                key="preview"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="relative"
+              >
+                <img
+                  src={previewUrl}
+                  alt="Preview"
+                  className="mx-auto max-h-48 object-contain"
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-0 right-0 mt-2 mr-2"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    clearPreview();
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="upload"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                <p className="mt-2 text-sm text-gray-600">
+                  {isDragActive ? t('dropImageHere') : t('dragDropImage')}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default ImageUpload;
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/InstructionCard.jsx
+==================================================
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { useAccessibility } from '../contexts/AccessibilityContext';
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
+import { Button } from "./ui/button"
+import { Volume2 } from 'lucide-react';
+
+const InstructionCard = () => {
+  const { t } = useTranslation();
+  const { speakText } = useAccessibility();
+
+  const instructions = [
+    t('instruction1'),
+    t('instruction2'),
+    t('instruction3'),
+    t('instruction4'),
+  ];
+
+  const handleSpeakInstructions = () => {
+    speakText(instructions.join('. '));
+  };
+
+  return (
+    <Card className="mb-8">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle>{t('instructions')}</CardTitle>
+        <Button variant="ghost" size="sm" onClick={handleSpeakInstructions}>
+          <Volume2 className="h-4 w-4" />
+          <span className="sr-only">{t('speakInstructions')}</span>
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <ol className="list-decimal list-inside space-y-2">
+          {instructions.map((instruction, index) => (
+            <li key={index}>{instruction}</li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default InstructionCard;
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/InteractiveCorrection.jsx
+==================================================
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
+import { Textarea } from "./ui/textarea"
+
+const InteractiveCorrection = ({ text, onCorrection }) => {
+  const [correctedText, setCorrectedText] = useState(text);
+
+  useEffect(() => {
+    setCorrectedText(text);
+  }, [text]);
+
+  const handleChange = (e) => {
+    setCorrectedText(e.target.value);
+    onCorrection(e.target.value);
+  };
+
+  return (
+    <Card className="mt-8">
+      <CardHeader>
+        <CardTitle>Interactive Correction</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Textarea
+          value={correctedText}
+          onChange={handleChange}
+          className="w-full h-40 p-2"
+          placeholder="Edit the recognized text here..."
+        />
+      </CardContent>
+    </Card>
+  );
+};
+
+export default InteractiveCorrection;
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/RecognizedText.jsx
+==================================================
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
+import { Progress } from "./ui/progress"
+
+const RecognizedText = ({ text, confidence, processingTime, modelUsed }) => {
+  const { t } = useTranslation();
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>{t('recognizedText')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <motion.div 
+            className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg mb-4 max-h-60 overflow-y-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
+            <p className="whitespace-pre-wrap">{text}</p>
+          </motion.div>
+          <div className="space-y-4">
+            <div>
+              <span className="font-semibold">{t('confidence')}:</span>
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: '100%' }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+              >
+                <Progress value={confidence * 100} className="mt-2" />
+              </motion.div>
+              <span className="text-sm text-gray-600">{(confidence * 100).toFixed(2)}%</span>
+            </div>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+            >
+              <span className="font-semibold">{t('processingTime')}:</span> {processingTime.toFixed(2)} {t('seconds')}
+            </motion.p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+            >
+              <span className="font-semibold">{t('modelUsed')}:</span> {modelUsed}
+            </motion.p>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+};
+
+export default RecognizedText;
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/ui/alert.jsx
+==================================================
+import * as React from "react"
+import { cva } from "class-variance-authority";
+
+import { cn } from "../../lib/utils"
+
+const alertVariants = cva(
+  "relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground",
+  {
+    variants: {
+      variant: {
+        default: "bg-background text-foreground",
+        destructive:
+          "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  }
+)
+
+const Alert = React.forwardRef(({ className, variant, ...props }, ref) => (
+  <div
+    ref={ref}
+    role="alert"
+    className={cn(alertVariants({ variant }), className)}
+    {...props}
+  />
+))
+Alert.displayName = "Alert"
+
+const AlertTitle = React.forwardRef(({ className, ...props }, ref) => (
+  <h5
+    ref={ref}
+    className={cn("mb-1 font-medium leading-none tracking-tight", className)}
+    {...props}
+  />
+))
+AlertTitle.displayName = "AlertTitle"
+
+const AlertDescription = React.forwardRef(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("text-sm [&_p]:leading-relaxed", className)}
+    {...props}
+  />
+))
+AlertDescription.displayName = "AlertDescription"
+
+export { Alert, AlertTitle, AlertDescription }
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/ui/button.jsx
+==================================================
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva } from "class-variance-authority";
+
+import { cn } from "../../lib/utils"
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline:
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-9 rounded-md px-3",
+        lg: "h-11 rounded-md px-8",
+        icon: "h-10 w-10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
+
+const Button = React.forwardRef(({ className, variant, size, asChild = false, ...props }, ref) => {
+  const Comp = asChild ? Slot : "button"
+  return (
+    <Comp
+      className={cn(buttonVariants({ variant, size, className }))}
+      ref={ref}
+      {...props}
+    />
+  )
+})
+Button.displayName = "Button"
+
+export { Button, buttonVariants }
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/ui/card.jsx
+==================================================
+import * as React from "react"
+
+import { cn } from "../../lib/utils"
+
+const Card = React.forwardRef(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)}
+    {...props}
+  />
+))
+Card.displayName = "Card"
+
+const CardHeader = React.forwardRef(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex flex-col space-y-1.5 p-6", className)}
+    {...props}
+  />
+))
+CardHeader.displayName = "CardHeader"
+
+const CardTitle = React.forwardRef(({ className, ...props }, ref) => (
+  <h3
+    ref={ref}
+    className={cn("text-2xl font-semibold leading-none tracking-tight", className)}
+    {...props}
+  />
+))
+CardTitle.displayName = "CardTitle"
+
+const CardDescription = React.forwardRef(({ className, ...props }, ref) => (
+  <p
+    ref={ref}
+    className={cn("text-sm text-muted-foreground", className)}
+    {...props}
+  />
+))
+CardDescription.displayName = "CardDescription"
+
+const CardContent = React.forwardRef(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+))
+CardContent.displayName = "CardContent"
+
+const CardFooter = React.forwardRef(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex items-center p-6 pt-0", className)}
+    {...props}
+  />
+))
+CardFooter.displayName = "CardFooter"
+
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/ui/label.jsx
+==================================================
+import * as React from "react"
+import * as LabelPrimitive from "@radix-ui/react-label"
+import { cva } from "class-variance-authority"
+
+import { cn } from "../../lib/utils"
+
+const labelVariants = cva(
+  "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+)
+
+const Label = React.forwardRef(({ className, ...props }, ref) => (
+  <LabelPrimitive.Root ref={ref} className={cn(labelVariants(), className)} {...props} />
+))
+Label.displayName = LabelPrimitive.Root.displayName
+
+export { Label }
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/ui/progress.jsx
+==================================================
+import * as React from "react"
+import * as ProgressPrimitive from "@radix-ui/react-progress"
+
+import { cn } from "../../lib/utils"
+
+const Progress = React.forwardRef(({ className, value, ...props }, ref) => (
+  <ProgressPrimitive.Root
+    ref={ref}
+    className={cn(
+      "relative h-4 w-full overflow-hidden rounded-full bg-secondary",
+      className
+    )}
+    {...props}
+  >
+    <ProgressPrimitive.Indicator
+      className="h-full w-full flex-1 bg-primary transition-all"
+      style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+    />
+  </ProgressPrimitive.Root>
+))
+Progress.displayName = ProgressPrimitive.Root.displayName
+
+export { Progress }
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/ui/slider.jsx
+==================================================
+import * as React from "react"
+import * as SliderPrimitive from "@radix-ui/react-slider"
+
+import { cn } from "../../lib/utils"
+
+const Slider = React.forwardRef(({ className, ...props }, ref) => (
+  <SliderPrimitive.Root
+    ref={ref}
+    className={cn("relative flex w-full touch-none select-none items-center", className)}
+    {...props}
+  >
+    <SliderPrimitive.Track
+      className="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary"
+    >
+      <SliderPrimitive.Range className="absolute h-full bg-primary" />
+    </SliderPrimitive.Track>
+    <SliderPrimitive.Thumb
+      className="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+    />
+  </SliderPrimitive.Root>
+))
+Slider.displayName = SliderPrimitive.Root.displayName
+
+export { Slider }
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/ui/switch.jsx
+==================================================
+import * as React from "react"
+import * as SwitchPrimitives from "@radix-ui/react-switch"
+
+import { cn } from "../../lib/utils"
+
+const Switch = React.forwardRef(({ className, ...props }, ref) => (
+  <SwitchPrimitives.Root
+    className={cn(
+      "peer inline-flex h-[24px] w-[44px] shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input",
+      className
+    )}
+    {...props}
+    ref={ref}
+  >
+    <SwitchPrimitives.Thumb
+      className={cn(
+        "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
+      )}
+    />
+  </SwitchPrimitives.Root>
+))
+Switch.displayName = SwitchPrimitives.Root.displayName
+
+export { Switch }
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/ui/tabs.jsx
+==================================================
+import * as React from "react"
+import * as TabsPrimitive from "@radix-ui/react-tabs"
+
+import { cn } from "../../lib/utils"
+
+const Tabs = TabsPrimitive.Root
+
+const TabsList = React.forwardRef(({ className, ...props }, ref) => (
+  <TabsPrimitive.List
+    ref={ref}
+    className={cn(
+      "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground",
+      className
+    )}
+    {...props}
+  />
+))
+TabsList.displayName = TabsPrimitive.List.displayName
+
+const TabsTrigger = React.forwardRef(({ className, ...props }, ref) => (
+  <TabsPrimitive.Trigger
+    ref={ref}
+    className={cn(
+      "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+      className
+    )}
+    {...props}
+  />
+))
+TabsTrigger.displayName = TabsPrimitive.Trigger.displayName
+
+const TabsContent = React.forwardRef(({ className, ...props }, ref) => (
+  <TabsPrimitive.Content
+    ref={ref}
+    className={cn(
+      "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+      className
+    )}
+    {...props}
+  />
+))
+TabsContent.displayName = TabsPrimitive.Content.displayName
+
+export { Tabs, TabsList, TabsTrigger, TabsContent }
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/components/ui/textarea.jsx
+==================================================
+import * as React from "react"
+
+import { cn } from "../../lib/utils"
+
+const Textarea = React.forwardRef(({ className, ...props }, ref) => {
+  return (
+    <textarea
+      className={cn(
+        "flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      ref={ref}
+      {...props}
+    />
+  )
+})
+Textarea.displayName = "Textarea"
+
+export { Textarea }
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/contexts/AccessibilityContext.jsx
+==================================================
+import React, { createContext, useContext, useState, useEffect } from 'react';
+
+const AccessibilityContext = createContext();
+
+export const useAccessibility = () => useContext(AccessibilityContext);
+
+const AccessibilityProvider = ({ children }) => {
+  const [fontSize, setFontSize] = useState(() => {
+    const saved = localStorage.getItem('fontSize');
+    return saved ? parseInt(saved, 10) : 16;
+  });
+  const [highContrast, setHighContrast] = useState(() => {
+    const saved = localStorage.getItem('highContrast');
+    return saved === 'true';
+  });
+  const [textToSpeech, setTextToSpeech] = useState(() => {
+    const saved = localStorage.getItem('textToSpeech');
+    return saved === 'true';
+  });
+  const [keyboardNavigation, setKeyboardNavigation] = useState(() => {
+    const saved = localStorage.getItem('keyboardNavigation');
+    return saved === 'true';
+  });
+  const [screenReaderMode, setScreenReaderMode] = useState(() => {
+    const saved = localStorage.getItem('screenReaderMode');
+    return saved === 'true';
+  });
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${fontSize}px`;
+    localStorage.setItem('fontSize', fontSize);
+  }, [fontSize]);
+
+  useEffect(() => {
+    if (highContrast) {
+      document.body.classList.add('high-contrast');
+    } else {
+      document.body.classList.remove('high-contrast');
+    }
+    localStorage.setItem('highContrast', highContrast);
+  }, [highContrast]);
+
+  useEffect(() => {
+    localStorage.setItem('textToSpeech', textToSpeech);
+  }, [textToSpeech]);
+
+  useEffect(() => {
+    if (keyboardNavigation) {
+      document.body.classList.add('keyboard-navigation');
+    } else {
+      document.body.classList.remove('keyboard-navigation');
+    }
+    localStorage.setItem('keyboardNavigation', keyboardNavigation);
+  }, [keyboardNavigation]);
+
+  useEffect(() => {
+    if (screenReaderMode) {
+      document.body.setAttribute('aria-live', 'polite');
+    } else {
+      document.body.removeAttribute('aria-live');
+    }
+    localStorage.setItem('screenReaderMode', screenReaderMode);
+  }, [screenReaderMode]);
+
+  const speakText = (text) => {
+    if (textToSpeech && 'speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  return (
+    <AccessibilityContext.Provider
+      value={{
+        fontSize,
+        setFontSize,
+        highContrast,
+        setHighContrast,
+        textToSpeech,
+        setTextToSpeech,
+        keyboardNavigation,
+        setKeyboardNavigation,
+        screenReaderMode,
+        setScreenReaderMode,
+        speakText,
+      }}
+    >
+      {children}
+    </AccessibilityContext.Provider>
+  );
+};
+
+export default AccessibilityProvider;
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/contexts/ThemeContext.jsx
+==================================================
+import React, { createContext, useState, useContext, useEffect } from 'react';
+
+const ThemeContext = createContext();
+
+export const ThemeProvider = ({ children }) => {
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme || 'light';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+    document.documentElement.classList.remove('light', 'dark', 'futuristic');
+    document.documentElement.classList.add(theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => {
+      if (prevTheme === 'light') return 'dark';
+      if (prevTheme === 'dark') return 'futuristic';
+      return 'light';
+    });
+  };
+
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+
+export const useTheme = () => useContext(ThemeContext);
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/lib/utils.js
+==================================================
+import { clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs) {
+  return twMerge(clsx(inputs))
+}
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/pages/HomePage.jsx
+==================================================
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Button } from "../components/ui/button";
+import { Card, CardContent } from "../components/ui/card";
+import { Upload, Brain, Download } from 'lucide-react';
+
+const HomePage = () => {
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1
+    }
+  };
+
+  return (
+    <div className="container mx-auto px-4 py-16 select-none">
+      <motion.div
+        className="text-center"
+        initial="hidden"
+        animate="visible"
+        variants={containerVariants}
+      >
+        <motion.h1 
+          className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary"
+          variants={itemVariants}
+        >
+          AI-Powered Handwriting Recognition
+        </motion.h1>
+        <motion.p 
+          className="text-lg md:text-xl mb-12 max-w-2xl mx-auto"
+          variants={itemVariants}
+        >
+          Experience the future of handwriting digitization with our advanced machine learning technology.
+        </motion.p>
+        <motion.div variants={itemVariants}>
+          <Link to="/recognition">
+            <Button size="lg" className="text-lg px-8 py-6 bg-gradient-to-r from-primary to-secondary hover:from-primary/80 hover:to-secondary/80 transition-all duration-300 transform hover:scale-105">
+              Start Recognition
+            </Button>
+          </Link>
+        </motion.div>
+      </motion.div>
+
+      <motion.div 
+        className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {[
+          { title: "Upload", description: "Easily upload handwritten documents", icon: Upload },
+          { title: "Recognize", description: "Advanced AI processes your handwriting", icon: Brain },
+          { title: "Export", description: "Download your digitized text instantly", icon: Download }
+        ].map((feature, index) => (
+          <motion.div key={index} variants={itemVariants}>
+            <Card className="hover:shadow-lg transition-shadow duration-300">
+              <CardContent className="p-6 text-center">
+                <feature.icon className="h-12 w-12 mx-auto mb-4 text-primary" />
+                <h2 className="text-2xl font-semibold mb-2">{feature.title}</h2>
+                <p>{feature.description}</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </motion.div>
+    </div>
+  );
+};
+
+export default HomePage;
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/pages/RecognitionPage.jsx
+==================================================
+import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import { Button } from "../components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs"
+import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert"
+import { Loader2, Upload, Camera, Volume2 } from 'lucide-react'
+import ImageUpload from '../components/ImageUpload';
+import CameraCapture from '../components/CameraCapture';
+import RecognizedText from '../components/RecognizedText';
+import ExportOptions from '../components/ExportOptions';
+import InstructionCard from '../components/InstructionCard';
+import { useAccessibility } from '../contexts/AccessibilityContext';
+
+const RecognitionPage = () => {
+  const { t } = useTranslation();
+  const [recognizedText, setRecognizedText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [confidence, setConfidence] = useState(null);
+  const [processingTime, setProcessingTime] = useState(null);
+  const [modelUsed, setModelUsed] = useState('');
+  const { speakText } = useAccessibility();
+
+  const handleRecognition = useCallback(async (file, isRealTime = false) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const endpoint = isRealTime ? '/recognize_realtime' : '/recognize';
+      const response = await axios.post(`http://localhost:8000${endpoint}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: isRealTime ? 10000 : 60000,
+      });
+
+      setRecognizedText(response.data.text);
+      setConfidence(response.data.confidence);
+      setProcessingTime(response.data.processing_time);
+      setModelUsed(response.data.model_used);
+    } catch (error) {
+      console.error('Error:', error);
+      setError(t('recognitionError'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [t]);
+
+  const handleSpeakRecognizedText = () => {
+    speakText(recognizedText);
+  };
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <InstructionCard />
+      <Tabs defaultValue="upload" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="upload">
+            <Upload className="mr-2 h-4 w-4" />
+            {t('imageUpload')}
+          </TabsTrigger>
+          <TabsTrigger value="camera">
+            <Camera className="mr-2 h-4 w-4" />
+            {t('cameraCapture')}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="upload">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('uploadImage')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ImageUpload onUpload={(file) => handleRecognition(file, false)} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="camera">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('cameraCapture')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CameraCapture onCapture={(file) => handleRecognition(file, true)} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+      {isLoading && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="flex justify-center items-center mt-8"
+        >
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          <span>{t('processingImage')}</span>
+        </motion.div>
+      )}
+      {error && (
+        <Alert variant="destructive" className="mt-8">
+          <AlertTitle>{t('error')}</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      {recognizedText && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <RecognizedText 
+            text={recognizedText} 
+            confidence={confidence}
+            processingTime={processingTime}
+            modelUsed={modelUsed}
+          />
+          <Button onClick={handleSpeakRecognizedText} className="mt-4">
+            <Volume2 className="mr-2 h-4 w-4" />
+            {t('speakRecognizedText')}
+          </Button>
+          <ExportOptions text={recognizedText} />
+        </motion.div>
+      )}
+    </div>
+  );
+};
+
+export default RecognitionPage;
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/pages/SettingsPage.jsx
+==================================================
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
+import { useTheme } from '../contexts/ThemeContext';
+import AccessibilityOptions from '../components/AccessibilityOptions';
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
+import { Button } from "../components/ui/button"
+import { Sun, Moon, Zap } from 'lucide-react';
+
+const SettingsPage = () => {
+  const { t } = useTranslation();
+  const { theme, setTheme } = useTheme();
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1
+    }
+  };
+
+  return (
+    <div className="container mx-auto px-4 py-8 settings-page">
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={containerVariants}
+      >
+        <motion.h1 className="text-3xl font-bold mb-6" variants={itemVariants}>{t('settings')}</motion.h1>
+        <motion.div variants={itemVariants}>
+          <AccessibilityOptions />
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('customizableThemes')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-4">
+                <Button 
+                  onClick={() => setTheme('light')} 
+                  className={`${theme === 'light' ? 'bg-primary' : 'bg-secondary'}`}
+                  aria-label={t('lightTheme')}
+                >
+                  <Sun className="mr-2 h-4 w-4" aria-hidden="true" />
+                  {t('lightTheme')}
+                </Button>
+                <Button 
+                  onClick={() => setTheme('dark')} 
+                  className={`${theme === 'dark' ? 'bg-primary' : 'bg-secondary'}`}
+                  aria-label={t('darkTheme')}
+                >
+                  <Moon className="mr-2 h-4 w-4" aria-hidden="true" />
+                  {t('darkTheme')}
+                </Button>
+                <Button 
+                  onClick={() => setTheme('futuristic')} 
+                  className={`${theme === 'futuristic' ? 'bg-primary' : 'bg-secondary'}`}
+                  aria-label={t('futuristicTheme')}
+                >
+                  <Zap className="mr-2 h-4 w-4" aria-hidden="true" />
+                  {t('futuristicTheme')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </motion.div>
+    </div>
+  );
+};
+
+export default SettingsPage;
+
+
+
+==================================================
+File: D:\handwriting-recognition-system\frontend/src/styles/globals.css
+==================================================
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+  }
+ 
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
+
+  .futuristic {
+    --background: 240 100% 5%;
+    --foreground: 0 0% 100%;
+    --card: 240 100% 10%;
+    --card-foreground: 0 0% 100%;
+    --popover: 240 100% 10%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 263.4 70% 50.4%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 263.4 70% 50.4%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    font-family: 'Poppins', sans-serif;
+    font-size: 16px;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+.high-contrast {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 0%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 0%;
+  --primary: 0 0% 0%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 90%;
+  --secondary-foreground: 0 0% 0%;
+  --muted: 0 0% 90%;
+  --muted-foreground: 0 0% 40%;
+  --accent: 0 0% 90%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 0 100% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 0%;
+  --input: 0 0% 0%;
+  --ring: 0 0% 0%;
+}
+
+.dark .high-contrast {
+  --background: 0 0% 0%;
+  --foreground: 0 0% 100%;
+  --card: 0 0% 0%;
+  --card-foreground: 0 0% 100%;
+  --popover: 0 0% 0%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 0 0% 100%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 0 0% 20%;
+  --secondary-foreground:--secondary-foreground: 0 0% 100%;
+  --muted: 0 0% 20%;
+  --muted-foreground: 0 0% 60%;
+  --accent: 0 0% 20%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 100% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 100%;
+  --input: 0 0% 100%;
+  --ring: 0 0% 100%;
+}
+
+.settings-page {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.recognized-text {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+.text-adjustable {
+  font-size: var(--base-font-size, 16px);
+}
+
+.keyboard-focus:focus {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 1025px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+.transition-theme {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.focus-visible:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Skip link styles */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  padding: 8px;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Improved focus styles for interactive elements */
+a:focus,
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Ensure sufficient color contrast */
+.text-primary {
+  color: var(--primary);
+}
+
+.bg-primary {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* Smooth transitions for theme changes */
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Improved readability for long text content */
+.content-area {
+  max-width: 65ch;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+}
+
+/* Ensure form labels are always visible */
+label {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+}
+
+/* Improve touch target sizes for mobile */
+@media (max-width: 640px) {
+  button,
+  .button,
+  .interactive-element {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Keyboard navigation styles */
+.keyboard-navigation :focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Screen reader only text */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Add more styles as needed for improved accessibility and user experience */
+
