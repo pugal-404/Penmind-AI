@@ -90,16 +90,6 @@ const AccessibilityOptions = () => {
               aria-label={t('toggleTextToSpeech')}
             />
           </div>
-          {textToSpeech && (
-            <Button 
-              onClick={() => speakText(t('TextToSpeech'))} 
-              className="w-full"
-              aria-label={t('testTextToSpeech')}
-            >
-              <Volume2 className="mr-2 h-4 w-4" aria-hidden="true" />
-              {t('TextToSpeech')}
-            </Button>
-          )}
           <div className="flex items-center justify-between">
             <Label htmlFor="keyboard-navigation" className="flex items-center">
               <Keyboard className="mr-2" aria-hidden="true" />
@@ -110,18 +100,6 @@ const AccessibilityOptions = () => {
               checked={keyboardNavigation}
               onCheckedChange={handleKeyboardNavigationChange}
               aria-label={t('toggleKeyboardNavigation')}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="screen-reader-mode" className="flex items-center">
-              <Eye className="mr-2" aria-hidden="true" />
-              {t('Screenreader Mode')}
-            </Label>
-            <Switch
-              id="screen-reader-mode"
-              checked={screenReaderMode}
-              onCheckedChange={handleScreenReaderModeChange}
-              aria-label={t('toggleScreenReaderMode')}
             />
           </div>
         </div>

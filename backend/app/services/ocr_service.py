@@ -11,6 +11,7 @@ import re
 import base64
 import traceback
 from tenacity import retry, stop_after_attempt, wait_exponential
+import onnxruntime as rt
 
 # Add the project root to PYTHONPATH
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -32,6 +33,20 @@ processor = None
 model_cache = {}
 bert_tokenizer = None
 bert_model = None
+
+# Load ONNX Model
+onnx_model_path = os.path.join("ml", "models", "versions", "model_latest.onnx")
+
+if not os.path.exists(onnx_model_path):
+    logger.error(f"Model file not found: {onnx_model_path}")
+    raise FileNotFoundError(f"ONNX model file not found at {onnx_model_path}")
+
+# Initialize ONNX Runtime Session
+try:
+    session = rt.InferenceSession(onnx_model_path, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
+except Exception as e:
+    logger.error(f"Failed to load ONNX model: {str(e)}")
+    raise RuntimeError(f"ONNX Runtime Initialization failed: {str(e)}")
 
 def get_model(model_type):
     if model_type == 'base':
@@ -74,25 +89,6 @@ def initialize_models():
         logger.error(traceback.format_exc())
         raise
 
-def recognize_trocr(image, model_type='base'):
-    try:
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-
-        pixel_values = processor(images=image, return_tensors="pt").pixel_values
-        
-        model = get_model(model_type)
-
-        with torch.no_grad():
-            generated_ids = model.generate(pixel_values)
-        recognized_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-
-        return recognized_text
-    except Exception as e:
-        logger.error(f"Error in recognize_trocr: {str(e)}")
-        logger.error(traceback.format_exc())
-        raise
-
 def recognize_text(image_data, model_type='ensemble'):
     try:
         image = convert_to_pil_image(image_data)
@@ -123,9 +119,30 @@ def recognize_text(image_data, model_type='ensemble'):
             line_text = post_process_text(line_text)
             recognized_lines.append(line_text)
 
-        return '\n'.join(recognized_lines)
+        final_text = '\n'.join(recognized_lines)
+        confidence = calculate_confidence(final_text)
+        return final_text, confidence
     except Exception as e:
         logger.error(f"Error in recognize_text: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise
+
+def recognize_trocr(image, model_type='base'):
+    try:
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+
+        pixel_values = processor(images=image, return_tensors="pt").pixel_values
+        
+        model = get_model(model_type)
+
+        with torch.no_grad():
+            generated_ids = model.generate(pixel_values)
+        recognized_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+
+        return recognized_text
+    except Exception as e:
+        logger.error(f"Error in recognize_trocr: {str(e)}")
         logger.error(traceback.format_exc())
         raise
 
@@ -193,6 +210,17 @@ def correct_spelling(text):
             tokens[i] = predicted_token
     return bert_tokenizer.convert_tokens_to_string(tokens)
 
+def calculate_confidence(text):
+    # Implement a confidence calculation based on the recognized text
+    # This is a placeholder implementation
+    return 0.95  # Return a high confidence score for now
+
+def retrain_model(feedback):
+    # Implement model retraining logic here
+    # This is a placeholder implementation
+    logger.info("Model retraining initiated with feedback")
+    # Add your retraining logic here
+
 # TensorFlow setup for GPU (if available)
 def setup_gpu():
     try:
@@ -211,3 +239,14 @@ def setup_gpu():
 setup_gpu()
 
 initialize_models()
+
+if __name__ == "__main__":
+    # Test the OCR service
+    test_image_path = "path/to/test/image.jpg"
+    with open(test_image_path, "rb") as image_file:
+        image_data = image_file.read()
+    
+    recognized_text, confidence = recognize_text(image_data)
+    print(f"Recognized Text: {recognized_text}")
+    print(f"Confidence: {confidence}")
+

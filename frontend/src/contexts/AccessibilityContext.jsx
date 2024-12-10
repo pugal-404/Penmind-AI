@@ -21,10 +21,6 @@ const AccessibilityProvider = ({ children }) => {
     const saved = localStorage.getItem('keyboardNavigation');
     return saved === 'true';
   });
-  const [screenReaderMode, setScreenReaderMode] = useState(() => {
-    const saved = localStorage.getItem('screenReaderMode');
-    return saved === 'true';
-  });
 
   useEffect(() => {
     document.documentElement.style.fontSize = `${fontSize}px`;
@@ -53,22 +49,6 @@ const AccessibilityProvider = ({ children }) => {
     localStorage.setItem('keyboardNavigation', keyboardNavigation);
   }, [keyboardNavigation]);
 
-  useEffect(() => {
-    if (screenReaderMode) {
-      document.body.setAttribute('aria-live', 'polite');
-    } else {
-      document.body.removeAttribute('aria-live');
-    }
-    localStorage.setItem('screenReaderMode', screenReaderMode);
-  }, [screenReaderMode]);
-
-  const speakText = (text) => {
-    if (textToSpeech && 'speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      window.speechSynthesis.speak(utterance);
-    }
-  };
-
   return (
     <AccessibilityContext.Provider
       value={{
@@ -80,9 +60,6 @@ const AccessibilityProvider = ({ children }) => {
         setTextToSpeech,
         keyboardNavigation,
         setKeyboardNavigation,
-        screenReaderMode,
-        setScreenReaderMode,
-        speakText,
       }}
     >
       {children}

@@ -1,0 +1,828 @@
+
+
+==================================================
+File: D:/handwriting-recognition-system/ml\inference/predict.py
+==================================================
+import tensorflow as tf
+import numpy as np
+from ml.preprocessing.preprocess import preprocess_image
+import yaml
+import os
+import logging
+import cv2
+import onnxruntime as rt
+from PIL import Image
+import io
+import base64
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def load_config():
+    """Load configuration from YAML file."""
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    config_path = os.path.join(project_root, 'config', 'config.yaml')
+    with open(config_path, "r", encoding="utf-8") as config_file:
+        return yaml.safe_load(config_file)
+
+config = load_config()
+
+# Initialize ONNX Runtime session for GPU acceleration
+onnx_model_path = os.path.join(config['paths']['model_versions'], 'model_latest.onnx')
+session = rt.InferenceSession(onnx_model_path, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
+
+def load_model(model_path):
+    """Load the TensorFlow model."""
+    return tf.keras.models.load_model(model_path, custom_objects={'ctc_loss': ctc_loss})
+
+def predict_with_confidence(image, confidence_threshold=0.7):
+    """
+    Predict text from image with confidence scores.
+    
+    Args:
+        image (numpy.ndarray): Input image
+        confidence_threshold (float): Threshold for confidence scores
+    
+    Returns:
+        tuple: Predicted text and confidence score
+    """
+    preprocessed_image = preprocess_image(image, target_size=tuple(config['model']['input_shape'][:2]))
+    
+    if preprocessed_image is None:
+        logger.error("Failed to preprocess the image")
+        return "Error: Unable to preprocess the image.", 0.0
+    
+    # Ensure the image has the correct shape for the model
+    if preprocessed_image.shape != tuple(config['model']['input_shape']):
+        preprocessed_image = tf.image.resize(preprocessed_image, config['model']['input_shape'][:2])
+        preprocessed_image = tf.expand_dims(preprocessed_image, axis=0)
+    else:
+        preprocessed_image = np.expand_dims(preprocessed_image, axis=0)
+    
+    # Run inference using ONNX Runtime
+    input_name = session.get_inputs()[0].name
+    output_name = session.get_outputs()[0].name
+    prediction = session.run([output_name], {input_name: preprocessed_image.astype(np.float32)})[0]
+    
+    # Decode the prediction
+    decoded_text = decode_prediction(prediction[0], config['model']['character_set'])
+    confidence = np.max(prediction)
+    
+    if confidence < confidence_threshold:
+        logger.warning(f"Low confidence prediction: {confidence:.2f}")
+        return f"Low confidence: {decoded_text}", confidence
+    
+    return decoded_text, confidence
+
+def decode_prediction(prediction, character_set):
+    """
+    Decode the model's prediction to text.
+    
+    Args:
+        prediction (numpy.ndarray): Model's output prediction
+        character_set (str): Set of characters used for prediction
+    
+    Returns:
+        str: Decoded text
+    """
+    # Implement beam search decoding
+    input_len = np.ones(prediction.shape[0]) * prediction.shape[1]
+    results = tf.keras.backend.ctc_decode(prediction, input_length=input_len, greedy=False, beam_width=100, top_paths=1)
+    
+    # Extract the best path
+    best_path = results[0][0]
+    
+    # Convert to text
+    text = ''.join([character_set[index] for index in best_path[0] if index != -1 and index < len(character_set)])
+    
+    return text
+
+def real_time_inference(camera_input):
+    """
+    Perform real-time inference on camera input.
+    
+    Args:
+        camera_input (numpy.ndarray): Input image from camera
+    
+    Returns:
+        tuple: Predicted text and confidence score
+    """
+    return predict_with_confidence(camera_input)
+
+def batch_process(image_list):
+    """
+    Process a batch of images for prediction.
+    
+    Args:
+        image_list (list): List of input images
+    
+    Returns:
+        list: List of tuples containing predicted text and confidence scores
+    """
+    results = []
+    for image in image_list:
+        text, confidence = predict_with_confidence(image)
+        results.append((text, confidence))
+    return results
+
+def handle_ambiguous_prediction(text, confidence, threshold=0.5):
+    """
+    Handle ambiguous predictions by flagging them for user review.
+    
+    Args:
+        text (str): Predicted text
+        confidence (float): Confidence score
+        threshold (float): Confidence threshold for flagging ambiguous predictions
+    
+    Returns:
+        tuple: Flagged text and boolean indicating if review is needed
+    """
+    if confidence < threshold:
+        return f"[REVIEW NEEDED] {text}", True
+    return text, False
+
+def process_base64_image(base64_string):
+    """
+    Process a base64 encoded image.
+    
+    Args:
+        base64_string (str): Base64 encoded image string
+    
+    Returns:
+        numpy.ndarray: Decoded image as a numpy array
+    """
+    image_data = base64.b64decode(base64_string)
+    image = Image.open(io.BytesIO(image_data))
+    return np.array(image)
+
+if __name__ == "__main__":
+    # Test the prediction function
+    test_image = cv2.imread("path/to/test_image.jpg")
+    predicted_text, confidence = predict_with_confidence(test_image)
+    logger.info(f"Predicted text: {predicted_text}")
+    logger.info(f"Confidence: {confidence:.2f}")
+    
+    # Test real-time inference (simulated with a single frame)
+    camera_frame = cv2.imread("path/to/camera_frame.jpg")
+    real_time_text, real_time_confidence = real_time_inference(camera_frame)
+    logger.info(f"Real-time prediction: {real_time_text}")
+    logger.info(f"Real-time confidence: {real_time_confidence:.2f}")
+    
+    # Test batch processing
+    batch_images = [cv2.imread(f"path/to/batch_image_{i}.jpg") for i in range(5)]
+    batch_results = batch_process(batch_images)
+    for i, (text, conf) in enumerate(batch_results):
+        logger.info(f"Batch image {i+1}: Text = {text}, Confidence = {conf:.2f}")
+    
+    # Test ambiguous prediction handling
+    ambiguous_text, needs_review = handle_ambiguous_prediction("Ambiguous text", 0.4)
+    logger.info(f"Ambiguous prediction: {ambiguous_text}")
+    logger.info(f"Needs review: {needs_review}")
+    
+    # Test base64 image processing
+    with open("path/to/base64_image.txt", "r") as f:
+        base64_string = f.read().strip()
+    base64_image = process_base64_image(base64_string)
+    base64_text, base64_confidence = predict_with_confidence(base64_image)
+    logger.info(f"Base64 image prediction: {base64_text}")
+    logger.info(f"Base64 image confidence: {base64_confidence:.2f}")
+
+
+
+==================================================
+File: D:/handwriting-recognition-system/ml\models/cnn_lstm_model.py
+==================================================
+import tensorflow as tf
+from tensorflow.keras import layers, models
+
+def attention_mechanism(query, key, value):
+    """
+    Implement an attention mechanism.
+    
+    Args:
+        query (tf.Tensor): Query tensor
+        key (tf.Tensor): Key tensor
+        value (tf.Tensor): Value tensor
+    
+    Returns:
+        tf.Tensor: Context vector after applying attention
+    """
+    score = tf.matmul(query, key, transpose_b=True)
+    distribution = tf.nn.softmax(score)
+    return tf.matmul(distribution, value)
+
+def create_advanced_cnn_lstm_model(input_shape, num_classes, use_transformer=False):
+    """
+    Create an advanced CNN-LSTM model with optional Transformer layers.
+    
+    Args:
+        input_shape (tuple): Shape of the input image
+        num_classes (int): Number of output classes
+        use_transformer (bool): Whether to use Transformer layers
+    
+    Returns:
+        tf.keras.Model: The constructed model
+    """
+    inputs = layers.Input(shape=input_shape)
+    
+    # CNN layers
+    x = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(inputs)
+    x = layers.MaxPooling2D((2, 2))(x)
+    x = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(x)
+    x = layers.MaxPooling2D((2, 2))(x)
+    x = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
+    x = layers.MaxPooling2D((2, 2))(x)
+    
+    # Prepare the feature maps for the LSTM layers
+    new_shape = ((input_shape[0] // 8), (input_shape[1] // 8) * 128)
+    x = layers.Reshape(target_shape=new_shape)(x)
+    
+    if use_transformer:
+        # Transformer layers
+        x = layers.LayerNormalization(epsilon=1e-6)(x)
+        x = layers.MultiHeadAttention(num_heads=8, key_dim=64)(x, x)
+        x = layers.Dropout(0.1)(x)
+        x = layers.LayerNormalization(epsilon=1e-6)(x)
+        x = layers.Dense(256, activation='relu')(x)
+        x = layers.Dense(128)(x)
+        x = layers.Dropout(0.1)(x)
+    else:
+        # Bidirectional LSTM layers with attention
+        lstm_out = layers.Bidirectional(layers.LSTM(256, return_sequences=True))(x)
+        lstm_out = layers.Dropout(0.5)(lstm_out)
+        
+        # Self-attention mechanism
+        query = layers.Dense(128)(lstm_out)
+        key = layers.Dense(128)(lstm_out)
+        value = layers.Dense(128)(lstm_out)
+        context_vector = layers.Lambda(lambda x: attention_mechanism(x[0], x[1], x[2]))([query, key, value])
+        
+        # Combine context vector with LSTM output
+        x = layers.Concatenate()([lstm_out, context_vector])
+        x = layers.Bidirectional(layers.LSTM(128))(x)
+        x = layers.Dropout(0.5)(x)
+    
+    # Output layer
+    outputs = layers.Dense(num_classes, activation='softmax')(x)
+    
+    # Create the model
+    model = models.Model(inputs=inputs, outputs=outputs)
+    
+    return model
+
+def ctc_loss(y_true, y_pred):
+    """
+    Implement CTC loss function.
+    
+    Args:
+        y_true (tf.Tensor): True labels
+        y_pred (tf.Tensor): Predicted labels
+    
+    Returns:
+        tf.Tensor: CTC loss value
+    """
+    batch_len = tf.cast(tf.shape(y_true)[0], dtype="int64")
+    input_length = tf.cast(tf.shape(y_pred)[1], dtype="int64")
+    label_length = tf.cast(tf.shape(y_true)[1], dtype="int64")
+
+    input_length = input_length * tf.ones(shape=(batch_len, 1), dtype="int64")
+    label_length = label_length * tf.ones(shape=(batch_len, 1), dtype="int64")
+
+    return tf.keras.backend.ctc_batch_cost(y_true, y_pred, input_length, label_length)
+
+if __name__ == "__main__":
+    input_shape = (64, 256, 1)  # Updated input shape
+    num_classes = 128  # Increased to accommodate more characters and symbols
+    
+    model = create_advanced_cnn_lstm_model(input_shape, num_classes)
+    model.summary()
+    
+    # Compile the model
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
+        loss=ctc_loss,
+        metrics=['accuracy']
+    )
+
+
+
+==================================================
+File: D:/handwriting-recognition-system/ml\models/pytorch_model.bin
+==================================================
+
+
+==================================================
+File: D:/handwriting-recognition-system/ml\models/pytorch_model.bin (Error: )
+==================================================
+
+
+==================================================
+File: D:/handwriting-recognition-system/ml\preprocessing/preprocess.py
+==================================================
+import cv2
+import numpy as np
+from PIL import Image
+import io
+from scipy import ndimage
+import tensorflow as tf
+import base64
+import logging
+import os
+import pywt
+import random
+
+logger = logging.getLogger(__name__)
+
+def wavelet_denoise(image, method='BayesShrink', mode='soft'):
+    """
+    Apply wavelet denoising to reduce noise while preserving features.
+    
+    Args:
+        image (numpy.ndarray): Input image
+        method (str): Thresholding method ('BayesShrink' or 'VisuShrink')
+        mode (str): Thresholding mode ('soft' or 'hard')
+    
+    Returns:
+        numpy.ndarray: Denoised image
+    """
+    coeffs = pywt.wavedec2(image, 'haar', level=2)
+    
+    if method == 'BayesShrink':
+        sigma = np.median(np.abs(coeffs[-1])) / 0.6745
+    else:  # VisuShrink
+        sigma = 0.1
+    
+    threshold = sigma * np.sqrt(2 * np.log(image.size))
+    new_coeffs = [pywt.threshold(c, threshold, mode=mode) for c in coeffs]
+    
+    denoised_image = pywt.waverec2(new_coeffs, 'haar')
+    
+    return denoised_image
+
+def adaptive_binarization(image, block_size=11, C=2):
+    """
+    Apply adaptive binarization to handle diverse lighting conditions.
+    
+    Args:
+        image (numpy.ndarray): Input grayscale image
+        block_size (int): Size of the local neighborhood for thresholding
+        C (int): Constant subtracted from the mean
+    
+    Returns:
+        numpy.ndarray: Binarized image
+    """
+    return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, block_size, C)
+
+def deep_skew_correction(image):
+    """
+    Apply deep learning-based skew correction.
+    
+    Args:
+        image (numpy.ndarray): Input image
+    
+    Returns:
+        numpy.ndarray: Skew-corrected image
+    """
+    # TODO: Implement or integrate a deep learning model for skew correction
+    edges = cv2.Canny(image, 50, 150, apertureSize=3)
+    lines = cv2.HoughLines(edges, 1, np.pi/180, 100)
+    if lines is not None:
+        angle = np.median([line[0][1] for line in lines])
+        if angle > np.pi / 4:
+            angle = angle - np.pi / 2
+        (h, w) = image.shape[:2]
+        center = (w // 2, h // 2)
+        M = cv2.getRotationMatrix2D(center, angle * 180 / np.pi, 1.0)
+        image = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+    return image
+
+def preprocess_image(image_data, target_size=(128, 512)):
+    try:
+        if isinstance(image_data, str):
+            image_data = base64.b64decode(image_data)
+        
+        if isinstance(image_data, bytes):
+            image = Image.open(io.BytesIO(image_data))
+        elif isinstance(image_data, np.ndarray):
+            image = Image.fromarray(image_data)
+        elif isinstance(image_data, Image.Image):
+            image = image_data
+        else:
+            raise ValueError("Unsupported image data type")
+
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+
+        image = image.resize(target_size, Image.LANCZOS)
+        
+        image_array = np.array(image)
+        
+        if image_array.ndim == 3:
+            image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+        
+        image_array = wavelet_denoise(image_array)
+        image_array = adaptive_binarization(image_array)
+        image_array = deep_skew_correction(image_array)
+        
+        image_array = image_array.astype(np.float32) / 255.0
+        image_array = np.expand_dims(image_array, axis=-1)
+        
+        return image_array
+    
+    except Exception as e:
+        logger.error(f"Error in preprocessing: {str(e)}")
+        return None
+
+def augment_image(image):
+    angle = np.random.uniform(-15, 15)
+    h, w = image.shape[:2]
+    M = cv2.getRotationMatrix2D((w/2, h/2), angle, 1)
+    image = cv2.warpAffine(image, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
+    
+    scale = np.random.uniform(0.8, 1.2)
+    image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
+    
+    tx, ty = np.random.uniform(-5, 5, 2)
+    M = np.float32([[1, 0, tx], [0, 1, ty]])
+    image = cv2.warpAffine(image, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
+    
+    shear = np.random.uniform(-0.1, 0.1)
+    M = np.float32([[1, shear, 0], [0, 1, 0]])
+    image = cv2.warpAffine(image, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
+    
+    image = elastic_transform(image, image.shape[1] * 2, image.shape[1] * 0.08, image.shape[1] * 0.08)
+    
+    return image
+
+def elastic_transform(image, alpha, sigma, alpha_affine, random_state=None):
+    """
+    Apply elastic transform to the image.
+    
+    Args:
+        image (numpy.ndarray): Input image
+        alpha (float): Scale factor for deformation
+        sigma (float): Smoothing factor
+        alpha_affine (float): Range of affine transform
+        random_state (numpy.random.RandomState): Random state for reproducibility
+    
+    Returns:
+        numpy.ndarray: Elastically transformed image
+    """
+    if random_state is None:
+        random_state = np.random.RandomState(None)
+
+    shape = image.shape
+    shape_size = shape[:2]
+    
+    center_square = np.float32(shape_size) // 2
+    square_size = min(shape_size) // 3
+    pts1 = np.float32([center_square + square_size, [center_square[0]+square_size, center_square[1]-square_size], center_square - square_size])
+    pts2 = pts1 + random_state.uniform(-alpha_affine, alpha_affine, size=pts1.shape).astype(np.float32)
+    M = cv2.getAffineTransform(pts1, pts2)
+    image = cv2.warpAffine(image, M, shape_size[::-1], borderMode=cv2.BORDER_REFLECT_101)
+
+    dx = ndimage.gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma) * alpha
+    dy = ndimage.gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma) * alpha
+    
+    x, y = np.meshgrid(np.arange(shape[1]), np.arange(shape[0]))
+    indices = np.reshape(y+dy, (-1, 1)), np.reshape(x+dx, (-1, 1))
+
+    return ndimage.map_coordinates(image, indices, order=1, mode='reflect').reshape(shape)
+
+def segment_lines(image):
+    """
+    Segment the image into lines using projection profile method.
+    
+    Args:
+        image (numpy.ndarray): Input image
+    
+    Returns:
+        list: List of line images
+    """
+    horizontal_projection = np.sum(image, axis=1)
+    line_boundaries = np.where(np.diff(horizontal_projection > 0))[0]
+    lines = []
+    for i in range(0, len(line_boundaries), 2):
+        if i + 1 < len(line_boundaries):
+            lines.append(image[line_boundaries[i]:line_boundaries[i+1], :])
+    return lines
+
+def segment_words(line_image):
+    """
+    Segment a line image into words using connected component analysis.
+    
+    Args:
+        line_image (numpy.ndarray): Input line image
+    
+    Returns:
+        list: List of word images
+    """
+    _, labels, stats, _ = cv2.connectedComponentsWithStats(line_image, connectivity=8)
+    words = []
+    for i in range(1, np.max(labels) + 1):
+        x, y, w, h, area = stats[i]
+        if area > 50:  # Minimum area threshold to avoid noise
+            words.append(line_image[y:y+h, x:x+w])
+    return words
+
+def generate_synthetic_data(num_samples, target_size=(128, 512), characters="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?`~∫∑∏≠≤≥∈∉"):
+    """
+    Generate synthetic handwriting data with elastic distortions.
+    
+    Args:
+        num_samples (int): Number of synthetic samples to generate
+        target_size (tuple): Target size of the generated images
+        characters (str): Character set to use for generating text
+    
+    Returns:
+        tuple: Numpy arrays of synthetic images and labels
+    """
+    synthetic_images = []
+    synthetic_labels = []
+    
+    for _ in range(num_samples):
+        label = ''.join(np.random.choice(list(characters), size=np.random.randint(5, 15)))
+        
+        image = np.ones(target_size, dtype=np.uint8) * 255
+        
+        font = cv2.FONT_HERSHEY_SCRIPT_COMPLEX
+        font_scale = np.random.uniform(0.5, 1.0)
+        thickness = np.random.randint(1, 3)
+        text_color = (0, 0, 0)  # Black text
+        
+        text_size = cv2.getTextSize(label, font, font_scale, thickness)[0]
+        text_x = (target_size[1] - text_size[0]) // 2
+        text_y = (target_size[0] + text_size[1]) // 2
+        
+        cv2.putText(image, label, (text_x, text_y), font, font_scale, text_color, thickness)
+        
+        image = elastic_transform(image, alpha=random.uniform(30, 60), sigma=random.uniform(3, 6), alpha_affine=random.uniform(3, 6))
+        
+        processed_image = preprocess_image(image, target_size)
+        
+        if processed_image is not None:
+            synthetic_images.append(processed_image)
+            synthetic_labels.append(label)
+    
+    return np.array(synthetic_images), np.array(synthetic_labels)
+
+if __name__ == "__main__":
+    # Test the preprocessing function
+    test_image = np.random.rand(100, 200, 3) * 255
+    test_image = test_image.astype(np.uint8)
+    
+    preprocessed = preprocess_image(test_image)
+    if preprocessed is not None:
+        print(f"Preprocessed image shape: {preprocessed.shape}")
+        print(f"Preprocessed image dtype: {preprocessed.dtype}")
+        print(f"Preprocessed image min value: {preprocessed.min()}")
+        print(f"Preprocessed image max value: {preprocessed.max()}")
+    
+    # Test with base64 encoded image
+    with open("path/to/test_image.jpg", "rb") as image_file:
+        encoded_string = base64.b64encode(image_file.read()).decode()
+    
+    preprocessed = preprocess_image(encoded_string)
+    if preprocessed is not None:
+        print(f"Preprocessed base64 image shape: {preprocessed.shape}")
+    
+    # Test the augmentation function
+    augmented = augment_image(test_image)
+    print(f"Augmented image shape: {augmented.shape}")
+
+    # Generate synthetic data
+    synthetic_images, synthetic_labels = generate_synthetic_data(100)
+    print(f"Generated {len(synthetic_images)} synthetic images with {len(synthetic_labels)} labels")
+
+
+
+==================================================
+File: D:/handwriting-recognition-system/ml\training/train.py
+==================================================
+import tensorflow as tf
+import numpy as np
+import random
+import os
+from ml.models.cnn_lstm_model import create_advanced_cnn_lstm_model, ctc_loss
+from ml.preprocessing.preprocess import preprocess_image, augment_image, elastic_transform
+import yaml
+from sklearn.model_selection import train_test_split
+import logging
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, ReduceLROnPlateau, EarlyStopping
+from tensorflow.keras.metrics import Mean
+import editdistance
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def load_config():
+    """Load configuration from YAML file."""
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    config_path = os.path.join(project_root, 'config', 'config.yaml')
+    with open(config_path, 'r') as config_file:
+        return yaml.safe_load(config_file)
+
+def load_dataset(data_dir, config):
+    """Load and preprocess the dataset."""
+    images = []
+    labels = []
+    character_set = config['model']['character_set']
+    
+    for char in character_set:
+        char_dir = os.path.join(data_dir, char)
+        if os.path.isdir(char_dir):
+            for file in os.listdir(char_dir):
+                if file.endswith(('.png', '.jpg', '.jpeg')):
+                    img_path = os.path.join(char_dir, file)
+                    img = preprocess_image(img_path, target_size=tuple(config['model']['input_shape'][:2]))
+                    
+                    if img is not None:
+                        images.append(img)
+                        labels.append(character_set.index(char))
+    
+    return np.array(images), np.array(labels)
+
+def data_generator(x, y, batch_size, config, augment=True):
+    """Generate batches of data with optional augmentation."""
+    num_samples = x.shape[0]
+    num_classes = len(config['model']['character_set'])
+    
+    while True:
+        indices = np.random.permutation(num_samples)
+        for i in range(0, num_samples, batch_size):
+            batch_indices = indices[i:i+batch_size]
+            batch_x = x[batch_indices]
+            batch_y = y[batch_indices]
+            
+            if augment:
+                batch_x = np.array([augment_image(img) for img in batch_x])
+                batch_x = np.array([elastic_transform(img, alpha=random.uniform(30, 60), sigma=random.uniform(3, 6), alpha_affine=random.uniform(3, 6)) for img in batch_x])
+            
+            batch_y_onehot = tf.keras.utils.to_categorical(batch_y, num_classes)
+            
+            yield batch_x, batch_y_onehot
+
+def calculate_cer(y_true, y_pred):
+    """Calculate Character Error Rate (CER)."""
+    total_cer = 0
+    for true, pred in zip(y_true, y_pred):
+        total_cer += editdistance.eval(true, pred) / len(true)
+    return total_cer / len(y_true)
+
+def calculate_wer(y_true, y_pred):
+    """Calculate Word Error Rate (WER)."""
+    total_wer = 0
+    for true, pred in zip(y_true, y_pred):
+        true_words = true.split()
+        pred_words = pred.split()
+        total_wer += editdistance.eval(true_words, pred_words) / len(true_words)
+    return total_wer / len(y_true)
+
+class MetricsCallback(tf.keras.callbacks.Callback):
+    def __init__(self, validation_data, character_set):
+        super().__init__()
+        self.validation_data = validation_data
+        self.character_set = character_set
+        self.cer_metric = Mean()
+        self.wer_metric = Mean()
+
+    def on_epoch_end(self, epoch, logs=None):
+        x_val, y_val = self.validation_data
+        predictions = self.model.predict(x_val)
+        decoded_predictions = self.decode_predictions(predictions)
+        decoded_true = self.decode_labels(y_val)
+        
+        cer = calculate_cer(decoded_true, decoded_predictions)
+        wer = calculate_wer(decoded_true, decoded_predictions)
+        
+        self.cer_metric.update_state(cer)
+        self.wer_metric.update_state(wer)
+        
+        logs['val_cer'] = self.cer_metric.result().numpy()
+        logs['val_wer'] = self.wer_metric.result().numpy()
+        
+        logger.info(f"Epoch {epoch+1}: CER = {logs['val_cer']:.4f}, WER = {logs['val_wer']:.4f}")
+
+    def decode_predictions(self, predictions):
+        # Implement CTC decoding here
+        pass
+
+    def decode_labels(self, labels):
+        # Convert one-hot encoded labels to text
+        pass
+
+def train_model(config):
+    """Train the handwriting recognition model."""
+    # Load and preprocess data
+    x, y = load_dataset(config['paths']['dataset'], config)
+    
+    # Split the data into training and validation sets
+    x_train, x_val, y_train, y_val = train_test_split(x, y, test_size=0.2, random_state=42)
+    
+    # Create and compile the model
+    model = create_advanced_cnn_lstm_model(tuple(config['model']['input_shape']), len(config['model']['character_set']))
+    
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=config['training']['learning_rate']),
+        loss=ctc_loss,
+        metrics=['accuracy']
+    )
+    
+    # Define callbacks
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=1e-6)
+    early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+    model_checkpoint = ModelCheckpoint(
+        config['paths']['best_model'],
+        save_best_only=True,
+        monitor='val_accuracy'
+    )
+    tensorboard = TensorBoard(log_dir=config['paths']['logs'])
+    metrics_callback = MetricsCallback((x_val, y_val), config['model']['character_set'])
+    
+    callbacks = [reduce_lr, early_stopping, model_checkpoint, tensorboard, metrics_callback]
+    
+    # Create data generators
+    train_gen = data_generator(x_train, y_train, config['training']['batch_size'], config, augment=config['training']['data_augmentation'])
+    val_gen = data_generator(x_val, y_val, config['training']['batch_size'], config, augment=False)
+    
+    # Train the model
+    history = model.fit(
+        train_gen,
+        steps_per_epoch=len(x_train) // config['training']['batch_size'],
+        validation_data=val_gen,
+        validation_steps=len(x_val) // config['training']['batch_size'],
+        epochs=config['training']['epochs'],
+        callbacks=callbacks
+    )
+    
+    # Save the final model
+    model.save(config['paths']['model_save'])
+    
+    return history
+
+def retrain_model(new_data, config):
+    """Retrain the model with new data (continuous learning)."""
+    # Load the existing model
+    model = tf.keras.models.load_model(config['paths']['model_save'], custom_objects={'ctc_loss': ctc_loss})
+    
+    # Preprocess new data
+    x_new, y_new = preprocess_new_data(new_data)
+    
+    # Combine new data with a subset of existing data
+    x_existing, y_existing = load_dataset(config['paths']['dataset'], config)
+    x_combined = np.concatenate([x_existing, x_new])
+    y_combined = np.concatenate([y_existing, y_new])
+    
+    # Retrain the model
+    history = train_model(config)
+    
+    # Save the retrained model with a new version
+    version = get_next_model_version(config['paths']['model_versions'])
+    model.save(os.path.join(config['paths']['model_versions'], f'model_v{version}.h5'))
+    
+    return history
+
+def get_next_model_version(versions_dir):
+    """Get the next model version number."""
+    existing_versions = [int(f.split('_v')[1].split('.')[0]) for f in os.listdir(versions_dir) if f.startswith('model_v')]
+    return max(existing_versions) + 1 if existing_versions else 1
+
+def preprocess_new_data(new_data):
+    """Preprocess new data for retraining."""
+    # Implement preprocessing for new data
+    pass
+
+if __name__ == "__main__":
+    config = load_config()
+    history = train_model(config)
+    
+    logger.info("Training completed. Model saved.")
+
+    # Plot training history
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(history.history['loss'], label='Training Loss')
+    plt.plot(history.history['val_loss'], label='Validation Loss')
+    plt.title('Model Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(history.history['accuracy'], label='Training Accuracy')
+    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+    plt.title('Model Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(config['paths']['logs'], 'training_history.png'))
+    plt.close()
+
+    logger.info("Training history plot saved.")
+

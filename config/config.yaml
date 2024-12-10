@@ -15,6 +15,7 @@ paths:
   best_model: "ml/models/best_model.h5"
   model_save: "ml/models/saved_model.h5"
   model_weights: "ml/models/model_weights.h5"
+  model_versions: "ml/models/versions"
 
 huggingface:
   api_key: "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"
@@ -67,3 +68,21 @@ post_processing:
     model: "bert-base-uncased"
   grammar_correction:
     enabled: true
+
+firebase:
+  credentials_path: "path/to/your/firebase-credentials.json"
+
+dependencies:
+  - firebase-admin
+  - onnxruntime
+  - tensorflow
+  - torch
+  - transformers
+  - pywt
+  - editdistance
+  - numpy
+  - pillow
+  - opencv-python
+  - scikit-learn
+  - matplotlib
+

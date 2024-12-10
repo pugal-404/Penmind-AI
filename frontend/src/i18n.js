@@ -37,6 +37,7 @@ i18n
           exportAsJson: 'Export as JSON',
           copiedToClipboard: 'Copied to clipboard!',
           recognitionError: 'An error occurred during recognition. Please try again.',
+    
         },
       },
       // Add more languages here

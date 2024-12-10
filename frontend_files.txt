@@ -190,7 +190,7 @@ File: D:\handwriting-recognition-system\frontend/public/index.html
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="/assets/icons/favicon.ico" />
+    <link rel="icon" href="/assets/icons/favicon_io/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     <meta
@@ -201,7 +201,7 @@ File: D:\handwriting-recognition-system\frontend/public/index.html
     <meta name="keywords" content="handwriting recognition, accessibility, AI, machine learning" />
     <link rel="apple-touch-icon" href="/assets/icons/apple-icon.png" />
     <link rel="manifest" href="/manifest.json" />
-    <title>Handwriting Recognition System</title>
+    <title>Penmind AI</title>
 </head>
 <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
@@ -230,7 +230,7 @@ File: D:\handwriting-recognition-system\frontend/public/manifest.json
   "name": "Advanced Handwriting Recognition System",
   "icons": [
     {
-      "src": "assets/icons/favicon.ico",
+      "src": "assets/icons/favicon_io/favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     },
@@ -314,7 +314,7 @@ import Footer from './components/Footer';
 import AccessibilityProvider from './contexts/AccessibilityContext';
 import './styles/globals.css';
 
-const App = () => {
+function App() {
   return (
     <ThemeProvider>
       <I18nextProvider i18n={i18n}>
@@ -342,7 +342,7 @@ const App = () => {
       </I18nextProvider>
     </ThemeProvider>
   );
-};
+}
 
 export default App;
 
@@ -506,7 +506,7 @@ const AccessibilityOptions = () => {
           <div className="flex items-center justify-between">
             <Label htmlFor="text-to-speech" className="flex items-center">
               <Volume2 className="mr-2" aria-hidden="true" />
-              {t('textToSpeech')}
+              {t('Text to Speech')}
             </Label>
             <Switch
               id="text-to-speech"
@@ -515,10 +515,20 @@ const AccessibilityOptions = () => {
               aria-label={t('toggleTextToSpeech')}
             />
           </div>
+          {textToSpeech && (
+            <Button 
+              onClick={() => speakText(t('TextToSpeech'))} 
+              className="w-full"
+              aria-label={t('testTextToSpeech')}
+            >
+              <Volume2 className="mr-2 h-4 w-4" aria-hidden="true" />
+              {t('TextToSpeech')}
+            </Button>
+          )}
           <div className="flex items-center justify-between">
             <Label htmlFor="keyboard-navigation" className="flex items-center">
               <Keyboard className="mr-2" aria-hidden="true" />
-              {t('keyboardNavigation')}
+              {t('Keyboard Navigation')}
             </Label>
             <Switch
               id="keyboard-navigation"
@@ -530,7 +540,7 @@ const AccessibilityOptions = () => {
           <div className="flex items-center justify-between">
             <Label htmlFor="screen-reader-mode" className="flex items-center">
               <Eye className="mr-2" aria-hidden="true" />
-              {t('screenReaderMode')}
+              {t('Screenreader Mode')}
             </Label>
             <Switch
               id="screen-reader-mode"
@@ -539,16 +549,6 @@ const AccessibilityOptions = () => {
               aria-label={t('toggleScreenReaderMode')}
             />
           </div>
-          {textToSpeech && (
-            <Button 
-              onClick={() => speakText(t('testTextToSpeech'))} 
-              className="w-full"
-              aria-label={t('testTextToSpeech')}
-            >
-              <Volume2 className="mr-2 h-4 w-4" aria-hidden="true" />
-              {t('testTextToSpeech')}
-            </Button>
-          )}
         </div>
       </CardContent>
     </Card>
@@ -841,7 +841,7 @@ const Header = () => {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            AI Writer
+              Penmind AI
           </motion.div>
         </Link>
         <nav>
@@ -987,8 +987,8 @@ File: D:\handwriting-recognition-system\frontend/src/components/InstructionCard.
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAccessibility } from '../contexts/AccessibilityContext';
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
-import { Button } from "./ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
 import { Volume2 } from 'lucide-react';
 
 const InstructionCard = () => {
@@ -996,10 +996,10 @@ const InstructionCard = () => {
   const { speakText } = useAccessibility();
 
   const instructions = [
-    t('instruction1'),
-    t('instruction2'),
-    t('instruction3'),
-    t('instruction4'),
+    "Click 'Image Upload' to select an existing image.",
+    "Click 'Camera Capture' to take a picture using your device.",
+    "Wait for the text to be recognized and displayed below.",
+    "Note : This model is evolving and may err. Use Interactive Correction if needed."
   ];
 
   const handleSpeakInstructions = () => {
@@ -1009,7 +1009,7 @@ const InstructionCard = () => {
   return (
     <Card className="mb-8">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle>{t('instructions')}</CardTitle>
+        <CardTitle>{t('Instructions')}</CardTitle>
         <Button variant="ghost" size="sm" onClick={handleSpeakInstructions}>
           <Volume2 className="h-4 w-4" />
           <span className="sr-only">{t('speakInstructions')}</span>
@@ -1027,6 +1027,7 @@ const InstructionCard = () => {
 };
 
 export default InstructionCard;
+
 
 ==================================================
 File: D:\handwriting-recognition-system\frontend/src/components/InteractiveCorrection.jsx
@@ -1680,11 +1681,12 @@ const HomePage = () => {
         variants={containerVariants}
       >
         <motion.h1 
-          className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary"
-          variants={itemVariants}
+      className="text-2xl md:text-3xl lg:text-4xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary"
+      variants={itemVariants}
         >
-          AI-Powered Handwriting Recognition
-        </motion.h1>
+       AI-Powered Handwriting Recognition
+      </motion.h1>
+
         <motion.p 
           className="text-lg md:text-xl mb-12 max-w-2xl mx-auto"
           variants={itemVariants}
@@ -1746,7 +1748,6 @@ import RecognizedText from '../components/RecognizedText';
 import ExportOptions from '../components/ExportOptions';
 import InstructionCard from '../components/InstructionCard';
 import { useAccessibility } from '../contexts/AccessibilityContext';
-
 const RecognitionPage = () => {
   const { t } = useTranslation();
   const [recognizedText, setRecognizedText] = useState('');
@@ -1756,14 +1757,12 @@ const RecognitionPage = () => {
   const [processingTime, setProcessingTime] = useState(null);
   const [modelUsed, setModelUsed] = useState('');
   const { speakText } = useAccessibility();
-
   const handleRecognition = useCallback(async (file, isRealTime = false) => {
     setIsLoading(true);
     setError(null);
     try {
       const formData = new FormData();
       formData.append('file', file);
-
       const endpoint = isRealTime ? '/recognize_realtime' : '/recognize';
       const response = await axios.post(`http://localhost:8000${endpoint}`, formData, {
         headers: {
@@ -1771,7 +1770,6 @@ const RecognitionPage = () => {
         },
         timeout: isRealTime ? 10000 : 60000,
       });
-
       setRecognizedText(response.data.text);
       setConfidence(response.data.confidence);
       setProcessingTime(response.data.processing_time);
@@ -1783,11 +1781,9 @@ const RecognitionPage = () => {
       setIsLoading(false);
     }
   }, [t]);
-
   const handleSpeakRecognizedText = () => {
     speakText(recognizedText);
   };
-
   return (
     <div className="container mx-auto px-4 py-8">
       <InstructionCard />
@@ -1862,10 +1858,7 @@ const RecognitionPage = () => {
     </div>
   );
 };
-
 export default RecognitionPage;
-
-
 
 ==================================================
 File: D:\handwriting-recognition-system\frontend/src/pages/SettingsPage.jsx
@@ -1908,14 +1901,14 @@ const SettingsPage = () => {
         animate="visible"
         variants={containerVariants}
       >
-        <motion.h1 className="text-3xl font-bold mb-6" variants={itemVariants}>{t('settings')}</motion.h1>
+        <motion.h1 className="text-3xl font-bold mb-6" variants={itemVariants}>{t('Settings')}</motion.h1>
         <motion.div variants={itemVariants}>
           <AccessibilityOptions />
         </motion.div>
         <motion.div variants={itemVariants}>
           <Card>
             <CardHeader>
-              <CardTitle>{t('customizableThemes')}</CardTitle>
+              <CardTitle>{t('Custom Themes')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-4">
@@ -1925,7 +1918,7 @@ const SettingsPage = () => {
                   aria-label={t('lightTheme')}
                 >
                   <Sun className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {t('lightTheme')}
+                  {t('Light')}
                 </Button>
                 <Button 
                   onClick={() => setTheme('dark')} 
@@ -1933,7 +1926,7 @@ const SettingsPage = () => {
                   aria-label={t('darkTheme')}
                 >
                   <Moon className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {t('darkTheme')}
+                  {t('Dark')}
                 </Button>
                 <Button 
                   onClick={() => setTheme('futuristic')} 
@@ -1941,7 +1934,7 @@ const SettingsPage = () => {
                   aria-label={t('futuristicTheme')}
                 >
                   <Zap className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {t('futuristicTheme')}
+                  {t('Standard')}
                 </Button>
               </div>
             </CardContent>
@@ -2239,3 +2232,16 @@ label {
 
 /* Add more styles as needed for improved accessibility and user experience */
 
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.recognized-text {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}

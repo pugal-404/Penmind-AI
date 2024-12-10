@@ -1,11 +1,14 @@
 import sys
 import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import yaml
 import traceback
 import signal
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 # Add the project root to PYTHONPATH
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -22,6 +25,11 @@ from app.services.ocr_service import initialize_models
 
 # Setup logger
 logger = setup_logger(config['logging']['level'], config['logging']['file'])
+
+# Initialize Firebase
+cred = credentials.Certificate("path/to/your/firebase-adminsdk.json")
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 app = FastAPI()
 

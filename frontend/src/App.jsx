@@ -11,7 +11,6 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import AccessibilityProvider from './contexts/AccessibilityContext';
 import './styles/globals.css';
-
 function App() {
   return (
     <ThemeProvider>
@@ -41,5 +40,4 @@ function App() {
     </ThemeProvider>
   );
 }
-
 export default App;
