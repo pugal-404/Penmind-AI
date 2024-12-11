@@ -1,16 +1,19 @@
+import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import tensorflow as tf
 import numpy as np
 import random
-import os
 from ml.models.cnn_lstm_model import create_advanced_cnn_lstm_model, ctc_loss
 from ml.preprocessing.preprocess import preprocess_image, augment_image, elastic_transform
 import yaml
 from sklearn.model_selection import train_test_split
 import logging
-from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, ReduceLROnPlateau, EarlyStopping
-from tensorflow.keras.metrics import Mean
+from tf_keras import ModelCheckpoint, TensorBoard, ReduceLROnPlateau, EarlyStopping
+from tf_keras import Mean
+
 import editdistance
 import torch.onnx
+import tf2onnx
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -193,40 +196,17 @@ def preprocess_new_data(new_data):
     # Implement preprocessing for new data
     pass
 
-def save_model_as_onnx(model, save_path="ml/models/versions/model_latest.onnx"):
-    dummy_input = torch.randn(1, 1, 128, 512)  # Adjust the input shape for your model
-    torch.onnx.export(model, dummy_input, save_path, export_params=True)
-    print(f"Model saved as ONNX at {save_path}")
-    
-if __name__ == "__main__":
-    config = load_config()
-    history = train_model(config)
-    
-    logger.info("Training completed. Model saved.")
+def save_model_as_onnx(model, model_dir="ml/models/versions", model_filename="model_latest.onnx"):
+    # Ensure directory exists
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+        print(f"Created directory: {model_dir}")
 
-    # Plot training history
-    import matplotlib.pyplot as plt
+    save_path = os.path.join(model_dir, model_filename)
+    spec = (tf.TensorSpec((None, 64, 256, 1), tf.float32, name="input"),)
+    output_path = save_path
 
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 2, 1)
-    plt.plot(history.history['loss'], label='Training Loss')
-    plt.plot(history.history['val_loss'], label='Validation Loss')
-    plt.title('Model Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-
-    plt.subplot(1, 2, 2)
-    plt.plot(history.history['accuracy'], label='Training Accuracy')
-    plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
-    plt.title('Model Accuracy')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.legend()
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(config['paths']['logs'], 'training_history.png'))
-    plt.close()
-
-    logger.info("Training history plot saved.")
-
+    # Convert TensorFlow model to ONNX
+    model_proto, _ = tf2onnx.convert.from_keras(model, input_signature=spec, opset=13)
+    tf2onnx.save(model_proto, output_path)
+    print(f"Model saved as ONNX at {output_path}")

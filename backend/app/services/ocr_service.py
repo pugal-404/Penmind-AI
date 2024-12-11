@@ -10,6 +10,8 @@ from transformers import TrOCRProcessor, VisionEncoderDecoderModel, BertTokenize
 import re
 import base64
 import traceback
+from app.utils.logger import get_logger
+from ml.preprocessing.preprocess import preprocess_image
 from tenacity import retry, stop_after_attempt, wait_exponential
 import onnxruntime as rt
 

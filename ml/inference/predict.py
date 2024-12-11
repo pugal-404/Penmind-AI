@@ -28,10 +28,18 @@ config = load_config()
 onnx_model_path = os.path.join(config['paths']['model_versions'], 'model_latest.onnx')
 session = rt.InferenceSession(onnx_model_path, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
 
-def load_model(model_path):
-    """Load the TensorFlow model."""
-    return tf.keras.models.load_model(model_path, custom_objects={'ctc_loss': ctc_loss})
+def load_config():
+    """Load configuration from YAML file."""
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    config_path = os.path.join(project_root, 'config', 'config.yaml')
+    with open(config_path, "r", encoding="utf-8") as config_file:
+        return yaml.safe_load(config_file)
 
+config = load_config()
+
+# Initialize ONNX Runtime session for GPU acceleration
+onnx_model_path = os.path.join(config['paths']['model_versions'], 'model_latest.onnx')
+session = rt.InferenceSession(onnx_model_path, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
 def predict_with_confidence(image, confidence_threshold=0.7):
     """
     Predict text from image with confidence scores.
@@ -50,20 +58,17 @@ def predict_with_confidence(image, confidence_threshold=0.7):
         return "Error: Unable to preprocess the image.", 0.0
     
     # Ensure the image has the correct shape for the model
-    if preprocessed_image.shape != tuple(config['model']['input_shape']):
-        preprocessed_image = tf.image.resize(preprocessed_image, config['model']['input_shape'][:2])
-        preprocessed_image = tf.expand_dims(preprocessed_image, axis=0)
-    else:
-        preprocessed_image = np.expand_dims(preprocessed_image, axis=0)
+    preprocessed_image = np.expand_dims(preprocessed_image, axis=0).astype(np.float32)
     
     # Run inference using ONNX Runtime
     input_name = session.get_inputs()[0].name
     output_name = session.get_outputs()[0].name
-    prediction = session.run([output_name], {input_name: preprocessed_image.astype(np.float32)})[0]
+    raw_prediction = session.run([output_name], {input_name: preprocessed_image})[0]
     
-    # Decode the prediction
-    decoded_text = decode_prediction(prediction[0], config['model']['character_set'])
-    confidence = np.max(prediction)
+    # Softmax to convert raw prediction to probability distribution
+    prediction_probs = np.exp(raw_prediction) / np.sum(np.exp(raw_prediction), axis=-1, keepdims=True)
+    confidence = np.max(prediction_probs)
+    decoded_text = decode_prediction(raw_prediction, config['model']['character_set'])
     
     if confidence < confidence_threshold:
         logger.warning(f"Low confidence prediction: {confidence:.2f}")

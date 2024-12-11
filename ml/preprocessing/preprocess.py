@@ -9,108 +9,71 @@ import logging
 import os
 import pywt
 import random
+import yaml
+import argparse
+import codecs
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def wavelet_denoise(image, method='BayesShrink', mode='soft'):
+def load_config(config_path="config/config.yaml"):
     """
-    Apply wavelet denoising to reduce noise while preserving features.
+    Load configuration from a YAML file.
     
     Args:
-        image (numpy.ndarray): Input image
-        method (str): Thresholding method ('BayesShrink' or 'VisuShrink')
-        mode (str): Thresholding mode ('soft' or 'hard')
+        config_path (str): Path to the configuration file
     
     Returns:
-        numpy.ndarray: Denoised image
+        dict: Loaded configuration
     """
-    coeffs = pywt.wavedec2(image, 'haar', level=2)
-    
-    if method == 'BayesShrink':
-        sigma = np.median(np.abs(coeffs[-1])) / 0.6745
-    else:  # VisuShrink
-        sigma = 0.1
-    
-    threshold = sigma * np.sqrt(2 * np.log(image.size))
-    new_coeffs = [pywt.threshold(c, threshold, mode=mode) for c in coeffs]
-    
-    denoised_image = pywt.waverec2(new_coeffs, 'haar')
-    
-    return denoised_image
-
-def adaptive_binarization(image, block_size=11, C=2):
-    """
-    Apply adaptive binarization to handle diverse lighting conditions.
-    
-    Args:
-        image (numpy.ndarray): Input grayscale image
-        block_size (int): Size of the local neighborhood for thresholding
-        C (int): Constant subtracted from the mean
-    
-    Returns:
-        numpy.ndarray: Binarized image
-    """
-    return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, block_size, C)
-
-def deep_skew_correction(image):
-    """
-    Apply deep learning-based skew correction.
-    
-    Args:
-        image (numpy.ndarray): Input image
-    
-    Returns:
-        numpy.ndarray: Skew-corrected image
-    """
-    # TODO: Implement or integrate a deep learning model for skew correction
-    edges = cv2.Canny(image, 50, 150, apertureSize=3)
-    lines = cv2.HoughLines(edges, 1, np.pi/180, 100)
-    if lines is not None:
-        angle = np.median([line[0][1] for line in lines])
-        if angle > np.pi / 4:
-            angle = angle - np.pi / 2
-        (h, w) = image.shape[:2]
-        center = (w // 2, h // 2)
-        M = cv2.getRotationMatrix2D(center, angle * 180 / np.pi, 1.0)
-        image = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-    return image
-
-def preprocess_image(image_data, target_size=(128, 512)):
     try:
-        if isinstance(image_data, str):
-            image_data = base64.b64decode(image_data)
-        
-        if isinstance(image_data, bytes):
-            image = Image.open(io.BytesIO(image_data))
-        elif isinstance(image_data, np.ndarray):
-            image = Image.fromarray(image_data)
-        elif isinstance(image_data, Image.Image):
-            image = image_data
-        else:
-            raise ValueError("Unsupported image data type")
-
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-
-        image = image.resize(target_size, Image.LANCZOS)
-        
-        image_array = np.array(image)
-        
-        if image_array.ndim == 3:
-            image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
-        
-        image_array = wavelet_denoise(image_array)
-        image_array = adaptive_binarization(image_array)
-        image_array = deep_skew_correction(image_array)
-        
-        image_array = image_array.astype(np.float32) / 255.0
-        image_array = np.expand_dims(image_array, axis=-1)
-        
-        return image_array
-    
+        with open(config_path, 'r', encoding='utf-8') as ymlfile:
+            cfg = yaml.safe_load(ymlfile)
+        return cfg
     except Exception as e:
-        logger.error(f"Error in preprocessing: {str(e)}")
-        return None
+        logger.error(f"Error loading configuration: {e}")
+        return {}
+
+def enhance_contrast(image):
+    """
+    Enhance contrast using CLAHE with less aggressive settings.
+    """
+    clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8,8))  # Reduced clip limit
+    return clahe.apply(image)
+
+def apply_bilateral_filter(image):
+    """
+    Apply a bilateral filter to the image to reduce noise while preserving edges.
+    """
+    return cv2.bilateralFilter(image, d=9, sigmaColor=75, sigmaSpace=75)
+
+
+def adaptive_threshold(image):
+    """
+    Apply adaptive thresholding with less aggressive parameters to retain more details.
+    """
+    return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                 cv2.THRESH_BINARY, 19, 5)  # Increased block size, adjusted C
+
+def preprocess_image(image_path,target_size =None):
+    """
+    Adjusted preprocessing to make the output less like a photocopy and more readable.
+    """
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        raise ValueError("Image not found or path is incorrect")
+
+    image = enhance_contrast(image)
+    image = adaptive_threshold(image)
+
+    # Use a smaller kernel for morphological opening to reduce its impact
+    kernel = np.ones((1,1), np.uint8)  
+    image = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
+
+    # Normalize the image to have pixel values between 0 and 1
+    image = image.astype('float32') / 255.0
+
+    return image
 
 def augment_image(image):
     angle = np.random.uniform(-15, 15)
@@ -133,40 +96,20 @@ def augment_image(image):
     
     return image
 
-def elastic_transform(image, alpha, sigma, alpha_affine, random_state=None):
+def elastic_transform(image, alpha, sigma, alpha_affine):
     """
-    Apply elastic transform to the image.
-    
-    Args:
-        image (numpy.ndarray): Input image
-        alpha (float): Scale factor for deformation
-        sigma (float): Smoothing factor
-        alpha_affine (float): Range of affine transform
-        random_state (numpy.random.RandomState): Random state for reproducibility
-    
-    Returns:
-        numpy.ndarray: Elastically transformed image
+    Apply elastic deformation to an image as described in [Simard2003].
     """
-    if random_state is None:
-        random_state = np.random.RandomState(None)
-
+    random_state = np.random.RandomState(None)
     shape = image.shape
-    shape_size = shape[:2]
-    
-    center_square = np.float32(shape_size) // 2
-    square_size = min(shape_size) // 3
-    pts1 = np.float32([center_square + square_size, [center_square[0]+square_size, center_square[1]-square_size], center_square - square_size])
-    pts2 = pts1 + random_state.uniform(-alpha_affine, alpha_affine, size=pts1.shape).astype(np.float32)
-    M = cv2.getAffineTransform(pts1, pts2)
-    image = cv2.warpAffine(image, M, shape_size[::-1], borderMode=cv2.BORDER_REFLECT_101)
-
     dx = ndimage.gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma) * alpha
     dy = ndimage.gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma) * alpha
-    
-    x, y = np.meshgrid(np.arange(shape[1]), np.arange(shape[0]))
-    indices = np.reshape(y+dy, (-1, 1)), np.reshape(x+dx, (-1, 1))
+    dz = np.zeros_like(dx)
 
-    return ndimage.map_coordinates(image, indices, order=1, mode='reflect').reshape(shape)
+    x, y, z = np.meshgrid(np.arange(shape[1]), np.arange(shape[0]), np.arange(shape[2]))
+    indices = np.reshape(y + dy, (-1, 1)), np.reshape(x + dx, (-1, 1)), np.reshape(z + dz, (-1, 1))
+    
+    return ndimage.map_coordinates(image, indices, order=1, mode='reflect')
 
 def segment_lines(image):
     """
@@ -245,31 +188,127 @@ def generate_synthetic_data(num_samples, target_size=(128, 512), characters="ABC
     
     return np.array(synthetic_images), np.array(synthetic_labels)
 
+def load_images_from_directory(directory):
+    images = []
+    for subdir, dirs, files in os.walk(directory):
+        for file in files:
+            if file.lower().endswith(".png"):
+                image_path = os.path.join(subdir, file)
+                processed_image = preprocess_image(image_path)
+                if processed_image is not None:
+                    images.append(processed_image)
+    return images
+
+def process_dataset(input_directory, output_directory, target_size=(128, 512)):
+    """
+    Process entire dataset, preprocessing and saving images.
+    """
+    # Ensure output directory exists
+    os.makedirs(output_directory, exist_ok=True)
+    
+    processed_count = 0
+    failed_count = 0
+    
+    # Walk through all subdirectories
+    for subdir, _, files in os.walk(input_directory):
+        for file in files:
+            if file.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
+                try:
+                    # Construct full input path
+                    input_path = os.path.join(subdir, file)
+                    
+                    # Preprocess the image
+                    processed_image = preprocess_image(input_path, target_size)
+                    
+                    if processed_image is not None:
+                        # Construct output path
+                        relative_path = os.path.relpath(subdir, input_directory)
+                        output_subdir = os.path.join(output_directory, relative_path)
+                        os.makedirs(output_subdir, exist_ok=True)
+                        
+                        output_path = os.path.join(output_subdir, file)
+                        
+                        # Save processed image
+                        if processed_image.ndim == 2:  # Checks if the image is grayscale
+                            processed_uint8 = (processed_image * 255).astype(np.uint8)
+                        else:  # Handles images with channels
+                            processed_uint8 = (processed_image[:,:,0] * 255).astype(np.uint8)
+                        cv2.imwrite(output_path, processed_uint8)
+                        
+                        processed_count += 1
+                    else:
+                        failed_count += 1
+                        logger.warning(f"Failed to process: {input_path}")
+                
+                except Exception as e:
+                    failed_count += 1
+                    logger.error(f"Error processing {input_path}: {e}")
+    
+    return processed_count, failed_count
+
+def main():
+    """
+    Main function to handle command-line arguments and execute preprocessing.
+    """
+    # Setup argument parser
+    parser = argparse.ArgumentParser(description="Handwriting Image Preprocessing Tool")
+    
+    # Add arguments
+    parser.add_argument('--config', default='config/config.yaml', 
+                        help='Path to configuration file')
+    parser.add_argument('--input', 
+                        help='Input directory containing images')
+    parser.add_argument('--output', 
+                        help='Output directory for processed images')
+    parser.add_argument('--generate-synthetic', type=int, default=0, 
+                        help='Number of synthetic images to generate')
+    parser.add_argument('--augment', action='store_true', 
+                        help='Apply data augmentation')
+    parser.add_argument('--verbose', action='store_true', 
+                        help='Enable verbose logging')
+    
+    # Parse arguments
+    args = parser.parse_args()
+    
+    # Configure logging
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+    
+    # Load configuration
+    config = load_config(args.config)
+    logger.info(f"Loaded configuration: {config}")
+    
+    # Determine input and output directories
+    input_directory = args.input or config.get('paths', {}).get('dataset')
+    output_directory = args.output or config.get('paths', {}).get('preprocessed_dataset')
+    
+    logger.info(f"Input directory: {input_directory}")
+    logger.info(f"Output directory: {output_directory}")
+    
+    if not input_directory or not output_directory:
+        logger.error("Input or output directory not specified")
+        logger.error("Please provide directories via command-line arguments or config file")
+        return
+    
+    
+    # Process dataset
+    logger.info(f"Processing images from {input_directory}")
+    processed_count, failed_count = process_dataset(input_directory, output_directory)
+    
+    logger.info(f"Processed {processed_count} images")
+    logger.info(f"Failed to process {failed_count} images")
+    
+    # Generate synthetic data if requested
+    if args.generate_synthetic > 0:
+        logger.info(f"Generating {args.generate_synthetic} synthetic images")
+        synthetic_images, synthetic_labels = generate_synthetic_data(args.generate_synthetic)
+        logger.info(f"Generated {len(synthetic_images)} synthetic images")
+
+    # Optional data augmentation
+    if args.augment:
+        logger.info("Applying data augmentation.")
+        augmented_count = augment_image(output_directory)
+        logger.info(f"Augmented {augmented_count} images.")
+
 if __name__ == "__main__":
-    # Test the preprocessing function
-    test_image = np.random.rand(100, 200, 3) * 255
-    test_image = test_image.astype(np.uint8)
-    
-    preprocessed = preprocess_image(test_image)
-    if preprocessed is not None:
-        print(f"Preprocessed image shape: {preprocessed.shape}")
-        print(f"Preprocessed image dtype: {preprocessed.dtype}")
-        print(f"Preprocessed image min value: {preprocessed.min()}")
-        print(f"Preprocessed image max value: {preprocessed.max()}")
-    
-    # Test with base64 encoded image
-    with open("path/to/test_image.jpg", "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read()).decode()
-    
-    preprocessed = preprocess_image(encoded_string)
-    if preprocessed is not None:
-        print(f"Preprocessed base64 image shape: {preprocessed.shape}")
-    
-    # Test the augmentation function
-    augmented = augment_image(test_image)
-    print(f"Augmented image shape: {augmented.shape}")
-
-    # Generate synthetic data
-    synthetic_images, synthetic_labels = generate_synthetic_data(100)
-    print(f"Generated {len(synthetic_images)} synthetic images with {len(synthetic_labels)} labels")
-
+    main()

@@ -1,0 +1,10 @@
+README.md
+setup.py
+handwriting_recognition_system.egg-info/PKG-INFO
+handwriting_recognition_system.egg-info/SOURCES.txt
+handwriting_recognition_system.egg-info/dependency_links.txt
+handwriting_recognition_system.egg-info/top_level.txt
+ml/__init__.py
+tests/test_api.py
+tests/test_model.py
+tests/test_preprocessing.py
